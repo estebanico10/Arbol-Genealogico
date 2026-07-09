@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #3b82f6;
+  --color-secondary: #64748b;
+  --color-background-light: #f8fafc;
+  --color-background-dark: #0f172a;
+  --color-surface-light: #ffffff;
+  --color-surface-dark: #1e293b;
+  --color-text-light: #334155;
+  --color-text-dark: #cbd5e1;
+}
+
+@layer base {
+  body {
+    @apply bg-background-light text-text-light transition-colors duration-200;
+  }
+  
+  .dark body {
+    @apply bg-background-dark text-text-dark;
+  }
+}
