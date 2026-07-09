@@ -16,13 +16,16 @@ function App() {
         <DataProvider>
           <HashRouter>
             <Routes>
+              {/* Rutas con Layout estándar (Home, Dashboard) */}
               <Route path="/" element={<Layout />}>
                 <Route index element={<HomePage />} />
-                <Route path="tree/:id" element={<TreePage />} />
                 <Route path="login" element={<AdminLogin />} />
                 <Route path="admin" element={<AdminDashboard />} />
                 <Route path="admin/tree/:id" element={<AdminArbol />} />
               </Route>
+
+              {/* Ruta Inmersiva Full-Screen Canvas sin barras globales ni scrollbars */}
+              <Route path="/tree/:id" element={<TreePage />} />
             </Routes>
           </HashRouter>
         </DataProvider>
