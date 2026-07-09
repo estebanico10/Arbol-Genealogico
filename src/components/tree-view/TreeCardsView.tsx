@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Persona, Relacion } from '../../types/database';
 import { calculateKinship } from '../../utils/kinshipCalculator';
+import { formatAgeDisplay } from '../../utils/ageCalculator';
 import { Search, Eye, Phone, Mail, Calendar, MapPin } from 'lucide-react';
 
 interface TreeCardsViewProps {
@@ -107,8 +108,7 @@ export default function TreeCardsView({
                     <div className="flex items-center gap-1.5">
                       <Calendar className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                       <span>
-                        {p.fecha_nacimiento ? new Date(p.fecha_nacimiento).getFullYear() : '?'} —{' '}
-                        {p.fecha_fallecimiento ? new Date(p.fecha_fallecimiento).getFullYear() : 'Presente'}
+                        {formatAgeDisplay(p.fecha_nacimiento, p.fecha_fallecimiento)}
                       </span>
                     </div>
                   )}

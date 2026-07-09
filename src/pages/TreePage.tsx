@@ -1,18 +1,20 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
-import { ArrowLeft, Compass, AppWindow, PanelRightOpen } from 'lucide-react';
+import { ArrowLeft, Compass, AppWindow, PanelRightOpen, Cake } from 'lucide-react';
 import TreeDiagram from '../components/tree-view/TreeDiagram';
 import TreeCardsView from '../components/tree-view/TreeCardsView';
 import TreeTableView from '../components/tree-view/TreeTableView';
+import { BirthdaysView } from '../components/tree-view/BirthdaysView';
 import PersonDetailModal from '../components/tree-view/PersonDetailModal';
 import { Persona } from '../types/database';
+import { getBirthdayInfo } from '../utils/ageCalculator';
 
 export default function TreePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { arboles, selectedArbol, setSelectedArbol, loading, personas, relaciones } = useData();
-  const [viewMode, setViewMode] = useState<'diagram' | 'grid' | 'table'>('diagram');
+  const [viewMode, setViewMode] = useState<'diagram' | 'grid' | 'table' | 'birthdays'>('diagram');
   const [focalPersonId, setFocalPersonId] = useState<string | null>(null);
 
   // Estado para el inspector de detalles
@@ -49,6 +51,21 @@ export default function TreePage() {
   }
 
   const focalPerson = personas.find((p) => p.id === focalPersonId);
+
+  // Calcular si hay alguien cumpliendo años hoy o muy próximo (<= 14 días)
+  const nearestBirthdayPerson = (() => {
+    let best: { persona: Persona; info: ReturnType<typeof getBirthdayInfo> } | null = null;
+    for (const p of personas) {
+      if (p.fecha_fallecimiento || !p.fecha_nacimiento) continue;
+      const info = getBirthdayInfo(p.fecha_nacimiento);
+      if (info && info.daysLeft <= 14) {
+        if (!best || info.daysLeft < (best.info?.daysLeft ?? 999)) {
+          best = { persona: p, info };
+        }
+      }
+    }
+    return best;
+  })();
 
   return (
     <div className="space-y-4 animate-fade-in flex flex-col h-[calc(100vh-11rem)]">
@@ -140,9 +157,50 @@ export default function TreePage() {
             >
               Tabla
             </button>
+            <button
+              onClick={() => setViewMode('birthdays')}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                viewMode === 'birthdays'
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md'
+                  : 'text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40'
+              }`}
+            >
+              <Cake className="w-4 h-4" />
+              <span>Cumpleaños</span>
+            </button>
           </div>
         </div>
       </div>
+
+      {/* Banner Inteligente de Próximo Cumpleaños */}
+      {nearestBirthdayPerson && nearestBirthdayPerson.info && viewMode !== 'birthdays' && (
+        <div
+          onClick={() => setViewMode('birthdays')}
+          className={`cursor-pointer rounded-2xl p-3 px-4 flex items-center justify-between transition-all hover:scale-[1.008] ${
+            nearestBirthdayPerson.info.isToday
+              ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white shadow-lg animate-pulse'
+              : 'bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/50 dark:to-orange-950/50 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-xl">🎂</span>
+            <div className="text-xs sm:text-sm">
+              {nearestBirthdayPerson.info.isToday ? (
+                <span>
+                  <strong>¡HOY ESTÁ CUMPLE AÑOS!</strong> Celebremos a{' '}
+                  <strong className="underline">{nearestBirthdayPerson.persona.nombres} {nearestBirthdayPerson.persona.apellidos}</strong> (Cumple {nearestBirthdayPerson.info.nextAge} años)
+                </span>
+              ) : (
+                <span>
+                  <strong>Próximo cumpleaños en {nearestBirthdayPerson.info.daysLeft} días:</strong>{' '}
+                  {nearestBirthdayPerson.persona.nombres} {nearestBirthdayPerson.persona.apellidos} ({nearestBirthdayPerson.info.dateFormatted}) — Cumplirá {nearestBirthdayPerson.info.nextAge} años
+                </span>
+              )}
+            </div>
+          </div>
+          <span className="text-xs font-bold underline shrink-0 ml-2">Ver todos →</span>
+        </div>
+      )}
 
       {/* Indicador Móvil de Punto de Vista si hay uno seleccionado */}
       {focalPerson && (
@@ -198,6 +256,16 @@ export default function TreePage() {
                 onSelectFocalPerson={setFocalPersonId}
                 onSelectPersonForDetail={setSelectedPersonForDetail}
               />
+            )}
+            {viewMode === 'birthdays' && (
+              <div className="p-6 h-full overflow-y-auto">
+                <BirthdaysView
+                  personas={personas}
+                  relaciones={relaciones}
+                  focalPersonId={focalPersonId}
+                  onSelectPersonForDetail={setSelectedPersonForDetail}
+                />
+              </div>
             )}
           </>
         )}

@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Persona, Relacion } from '../../types/database';
 import { calculateKinship } from '../../utils/kinshipCalculator';
+import { formatAgeDisplay } from '../../utils/ageCalculator';
 import { Search, Eye, Phone, Mail } from 'lucide-react';
 
 interface TreeTableViewProps {
@@ -114,8 +115,7 @@ export default function TreeTableView({
                   </td>
 
                   <td className="p-4 text-xs font-medium text-slate-600 dark:text-slate-300">
-                    {p.fecha_nacimiento ? new Date(p.fecha_nacimiento).getFullYear() : '?'} —{' '}
-                    {p.fecha_fallecimiento ? new Date(p.fecha_fallecimiento).getFullYear() : 'Presente'}
+                    {formatAgeDisplay(p.fecha_nacimiento, p.fecha_fallecimiento)}
                   </td>
 
                   <td className="p-4 text-xs text-slate-600 dark:text-slate-300 space-y-1">

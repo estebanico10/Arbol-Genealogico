@@ -164,11 +164,12 @@ function interpretPath(path: StepType[], targetGender: 'M' | 'F' | 'unknown'): s
  * Calcula el parentesco en español desde la persona focal hacia la persona objetivo
  */
 export function calculateKinship(
-  focalPersonId: string,
+  focalPersonId: string | null | undefined,
   targetPersonId: string,
   personas: Persona[],
   relaciones: Relacion[]
-): string {
+): string | null {
+  if (!focalPersonId) return null;
   if (focalPersonId === targetPersonId) return 'Yo (Punto de Vista)';
 
   const adj = buildKinshipGraph(personas, relaciones);

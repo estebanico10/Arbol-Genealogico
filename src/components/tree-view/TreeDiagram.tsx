@@ -4,6 +4,7 @@ import '@xyflow/react/dist/style.css';
 import { Persona, Relacion } from '../../types/database';
 import dagre from 'dagre';
 import { calculateKinship } from '../../utils/kinshipCalculator';
+import { formatAgeDisplay } from '../../utils/ageCalculator';
 import { Compass, LayoutGrid, Eye, RotateCcw, Tag } from 'lucide-react';
 
 interface TreeDiagramProps {
@@ -131,8 +132,7 @@ export default function TreeDiagram({
                       isFocal ? 'text-blue-100' : 'text-slate-500 dark:text-slate-400'
                     }`}
                   >
-                    {p.fecha_nacimiento ? new Date(p.fecha_nacimiento).getFullYear() : '?'} —{' '}
-                    {p.fecha_fallecimiento ? new Date(p.fecha_fallecimiento).getFullYear() : 'Presente'}
+                    {formatAgeDisplay(p.fecha_nacimiento, p.fecha_fallecimiento)}
                   </p>
                 </div>
               </div>

@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import { Persona, Relacion } from '../../types/database';
 import { calculateKinship } from '../../utils/kinshipCalculator';
-import { X, Phone, Mail, Calendar, MapPin, Eye, Users } from 'lucide-react';
+import { formatAgeDisplay, getBirthdayInfo } from '../../utils/ageCalculator';
+import { X, Phone, Mail, Calendar, MapPin, Eye, Users, Cake } from 'lucide-react';
 
 interface PersonDetailModalProps {
   persona: Persona | null;
@@ -63,6 +64,9 @@ export default function PersonDetailModal({
     };
   }, [persona, personas, relaciones]);
 
+  const ageDisplay = formatAgeDisplay(persona.fecha_nacimiento, persona.fecha_fallecimiento);
+  const bdayInfo = !persona.fecha_fallecimiento ? getBirthdayInfo(persona.fecha_nacimiento) : null;
+
   const content = (
     <div className="flex flex-col h-full bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">
       {/* Header Banner */}
@@ -102,6 +106,26 @@ export default function PersonDetailModal({
         </div>
       </div>
 
+      {/* Alerta de Cumpleaños si es hoy o muy próximo */}
+      {bdayInfo && bdayInfo.daysLeft <= 14 && (
+        <div className={`mx-6 mt-6 p-3.5 rounded-2xl flex items-center gap-3 ${
+          bdayInfo.isToday
+            ? 'bg-amber-500 text-white shadow-lg animate-pulse'
+            : 'bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200'
+        }`}>
+          <Cake className="w-6 h-6 shrink-0" />
+          <div className="text-sm">
+            {bdayInfo.isToday ? (
+              <p className="font-extrabold">🎉 ¡HOY ES SU CUMPLEAÑOS! Cumple exactamente {bdayInfo.nextAge} años.</p>
+            ) : (
+              <p className="font-bold">
+                🎂 Próximo cumpleaños en <strong>{bdayInfo.daysLeft} días</strong> ({bdayInfo.dateFormatted}) — Cumplirá {bdayInfo.nextAge} años.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Scrollable Body */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {/* Fechas y Lugar */}
@@ -109,24 +133,15 @@ export default function PersonDetailModal({
           <div className="flex items-start gap-3">
             <Calendar className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
             <div>
-              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Vida</p>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Edad y Vida</p>
               <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                {persona.fecha_nacimiento
-                  ? new Date(persona.fecha_nacimiento).toLocaleDateString('es-ES', {
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric',
-                    })
-                  : 'Desconocido'}
-                {' — '}
-                {persona.fecha_fallecimiento
-                  ? new Date(persona.fecha_fallecimiento).toLocaleDateString('es-ES', {
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric',
-                    })
-                  : 'Presente'}
+                {ageDisplay}
               </p>
+              {persona.fecha_nacimiento && (
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Nacimiento: {new Date(persona.fecha_nacimiento).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </p>
+              )}
             </div>
           </div>
 
@@ -233,7 +248,7 @@ export default function PersonDetailModal({
               </button>
             ))}
 
-            {hermanos.map((rel) => (
+            {hermanos.map((rel: { persona: Persona; rel: string }) => (
               <button
                 key={`h-${rel.persona.id}`}
                 onClick={() => onSelectRelative(rel.persona)}
