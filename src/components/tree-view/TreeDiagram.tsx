@@ -1,20 +1,35 @@
-import { useMemo, useEffect, useState, useCallback } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import {
   ReactFlow,
   MiniMap,
-  Controls,
   Background,
+  BackgroundVariant,
   useNodesState,
   useEdgesState,
   Node,
   Edge,
-  BackgroundVariant,
+  useReactFlow,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Persona, Relacion } from '../../types/database';
 import dagre from 'dagre';
 import { calculateKinship } from '../../utils/kinshipCalculator';
-import { Compass } from 'lucide-react';
+import {
+  Compass,
+  Search,
+  Maximize,
+  Minimize,
+  ZoomIn,
+  ZoomOut,
+  Focus,
+  Target,
+  Layers,
+  Image as ImageIcon,
+  Tag,
+  ArrowUpDown,
+  ArrowLeftRight,
+  X,
+} from 'lucide-react';
 
 interface TreeDiagramProps {
   personas: Persona[];
@@ -22,64 +37,335 @@ interface TreeDiagramProps {
   focalPersonId: string | null;
   onSelectFocalPerson: (id: string | null) => void;
   onSelectPersonForDetail: (persona: Persona) => void;
-  orientation?: 'TB' | 'LR';
-  showEdgeLabels?: boolean;
 }
 
+/* =========================================================================
+   BARRA FLOTANTE INTELIGENTE ESTILO FIGMA / MIRO (36x36px botones, radio 10px)
+   ========================================================================= */
+function FloatingSmartToolbar({
+  personas,
+  focalPersonId,
+  onSelectFocalPerson,
+  onSelectPersonForDetail,
+  orientation,
+  setOrientation,
+  showLabels,
+  setShowLabels,
+  showPhotos,
+  setShowPhotos,
+  showGenerations,
+  setShowGenerations,
+}: {
+  personas: Persona[];
+  focalPersonId: string | null;
+  onSelectFocalPerson: (id: string | null) => void;
+  onSelectPersonForDetail: (persona: Persona) => void;
+  orientation: 'TB' | 'LR';
+  setOrientation: React.Dispatch<React.SetStateAction<'TB' | 'LR'>>;
+  showLabels: boolean;
+  setShowLabels: React.Dispatch<React.SetStateAction<boolean>>;
+  showPhotos: boolean;
+  setShowPhotos: React.Dispatch<React.SetStateAction<boolean>>;
+  showGenerations: boolean;
+  setShowGenerations: React.Dispatch<React.SetStateAction<boolean>>;
+}) {
+  const { zoomIn, zoomOut, fitView, setCenter, getNode } = useReactFlow();
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Toggle de Pantalla Completa
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+    } else {
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+    }
+  };
+
+  // Centrar en el Punto de Vista actual
+  const handleCenterOnFocal = () => {
+    if (focalPersonId) {
+      const node = getNode(focalPersonId);
+      if (node) {
+        setCenter(node.position.x + 135, node.position.y + 47, { zoom: 1, duration: 600 });
+        return;
+      }
+    }
+    fitView({ duration: 600, padding: 0.15 });
+  };
+
+  // Resultados instantáneos de búsqueda
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.toLowerCase();
+    return personas
+      .filter(
+        (p) =>
+          p.nombres?.toLowerCase().includes(q) ||
+          p.apellidos?.toLowerCase().includes(q) ||
+          p.apodo?.toLowerCase().includes(q)
+      )
+      .slice(0, 6);
+  }, [personas, searchQuery]);
+
+
+  return (
+    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 p-1.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-slate-200/80 dark:border-slate-800/80 rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+      {/* 1. Buscar Persona (Popover compacto) */}
+      <div className="relative">
+        <button
+          onClick={() => setIsSearchOpen(!isSearchOpen)}
+          className={`w-9 h-9 flex items-center justify-center rounded-[10px] transition-all ${
+            isSearchOpen
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+          title="Buscar persona en el árbol"
+        >
+          <Search className="w-4 h-4" />
+        </button>
+
+        {isSearchOpen && (
+          <div className="absolute bottom-12 left-0 w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-3 z-50">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                Buscar miembro
+              </span>
+              <button
+                onClick={() => setIsSearchOpen(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <input
+              type="text"
+              autoFocus
+              placeholder="Nombre o apellido..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full px-3 py-2 text-xs bg-slate-100 dark:bg-slate-800 rounded-xl border-none outline-none text-slate-800 dark:text-slate-100 placeholder:text-slate-400 font-medium"
+            />
+            {searchResults.length > 0 && (
+              <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+                {searchResults.map((p) => (
+                  <div
+                    key={p.id}
+                    onClick={() => {
+                      onSelectPersonForDetail(p);
+                      const n = getNode(p.id);
+                      if (n) {
+                        setCenter(n.position.x + 135, n.position.y + 47, { zoom: 1.1, duration: 600 });
+                      }
+                      setIsSearchOpen(false);
+                      setSearchQuery('');
+                    }}
+                    className="flex items-center justify-between p-2 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer transition-colors text-xs"
+                  >
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">
+                      {p.nombres} {p.apellidos}
+                    </span>
+                    <span className="text-[10px] text-blue-600 font-bold">Ver</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 2. Selector de Punto de Vista (ÚNICO CONTROL CON TEXTO COMPACTO) */}
+      <div className="relative flex items-center bg-slate-100/80 dark:bg-slate-800/80 rounded-[10px] px-2.5 h-9">
+        <Compass className="w-3.5 h-3.5 text-blue-600 shrink-0 mr-1.5" />
+        <select
+          value={focalPersonId || ''}
+          onChange={(e) => {
+            const val = e.target.value || null;
+            onSelectFocalPerson(val);
+            if (val) {
+              const n = getNode(val);
+              if (n) {
+                setCenter(n.position.x + 135, n.position.y + 47, { zoom: 1.05, duration: 600 });
+              }
+            }
+          }}
+          className="text-xs font-semibold bg-transparent text-slate-800 dark:text-slate-200 border-none outline-none cursor-pointer pr-1 max-w-[130px] truncate"
+        >
+          <option value="">Vista General</option>
+          {personas.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.nombres} {p.apellidos}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="h-4 w-px bg-slate-200 dark:bg-slate-800 mx-0.5" />
+
+      {/* 3. Orientación Vertical / Horizontal */}
+      <button
+        onClick={() => setOrientation((prev) => (prev === 'TB' ? 'LR' : 'TB'))}
+        className="w-9 h-9 flex items-center justify-center rounded-[10px] text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+        title={`Orientación: ${orientation === 'TB' ? 'Vertical' : 'Horizontal'}`}
+      >
+        {orientation === 'TB' ? <ArrowUpDown className="w-4 h-4" /> : <ArrowLeftRight className="w-4 h-4" />}
+      </button>
+
+      {/* 4. Mostrar etiquetas de parentesco */}
+      <button
+        onClick={() => setShowLabels(!showLabels)}
+        className={`w-9 h-9 flex items-center justify-center rounded-[10px] transition-all ${
+          showLabels
+            ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600'
+            : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+        }`}
+        title="Mostrar etiquetas de relación"
+      >
+        <Tag className="w-4 h-4" />
+      </button>
+
+      {/* 5. Mostrar fotografías */}
+      <button
+        onClick={() => setShowPhotos(!showPhotos)}
+        className={`w-9 h-9 flex items-center justify-center rounded-[10px] transition-all ${
+          showPhotos
+            ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600'
+            : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+        }`}
+        title="Mostrar fotografías en nodos"
+      >
+        <ImageIcon className="w-4 h-4" />
+      </button>
+
+      {/* 6. Mostrar generaciones */}
+      <button
+        onClick={() => setShowGenerations(!showGenerations)}
+        className={`w-9 h-9 flex items-center justify-center rounded-[10px] transition-all ${
+          showGenerations
+            ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600'
+            : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+        }`}
+        title="Mostrar indicador de generación"
+      >
+        <Layers className="w-4 h-4" />
+      </button>
+
+      <div className="h-4 w-px bg-slate-200 dark:bg-slate-800 mx-0.5" />
+
+      {/* 7. Zoom In */}
+      <button
+        onClick={() => zoomIn({ duration: 300 })}
+        className="w-9 h-9 flex items-center justify-center rounded-[10px] text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+        title="Acercar zoom"
+      >
+        <ZoomIn className="w-4 h-4" />
+      </button>
+
+      {/* 8. Zoom Out */}
+      <button
+        onClick={() => zoomOut({ duration: 300 })}
+        className="w-9 h-9 flex items-center justify-center rounded-[10px] text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+        title="Alejar zoom"
+      >
+        <ZoomOut className="w-4 h-4" />
+      </button>
+
+      {/* 9. Ajustar al contenido (Fit to Screen) */}
+      <button
+        onClick={() => fitView({ duration: 600, padding: 0.15 })}
+        className="w-9 h-9 flex items-center justify-center rounded-[10px] text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+        title="Ajustar al contenido"
+      >
+        <Focus className="w-4 h-4" />
+      </button>
+
+      {/* 10. Centrar en Punto de Vista */}
+      <button
+        onClick={handleCenterOnFocal}
+        className="w-9 h-9 flex items-center justify-center rounded-[10px] text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+        title="Centrar en Punto de Vista"
+      >
+        <Target className="w-4 h-4" />
+      </button>
+
+      {/* 11. Pantalla Completa */}
+      <button
+        onClick={toggleFullscreen}
+        className="w-9 h-9 flex items-center justify-center rounded-[10px] text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+        title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+      >
+        {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+      </button>
+    </div>
+  );
+}
+
+/* =========================================================================
+   COMPONENTE PRINCIPAL DEL LIENZO
+   ========================================================================= */
 export default function TreeDiagram({
   personas,
   relaciones,
   focalPersonId,
   onSelectFocalPerson,
   onSelectPersonForDetail,
-  orientation = 'TB',
-  showEdgeLabels = false,
 }: TreeDiagramProps) {
+  const [orientation, setOrientation] = useState<'TB' | 'LR'>('TB');
+  const [showLabels, setShowLabels] = useState<boolean>(true);
+  const [showPhotos, setShowPhotos] = useState<boolean>(true);
+  const [showGenerations, setShowGenerations] = useState<boolean>(false);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
 
-  // Dimensiones SaaS 2026 horizontales minimalistas (270x95px)
-  const nodeWidth = 270;
-  const nodeHeight = 95;
-
-  // Cálculo de parientes directos para Focus dinámico en Hover o Selección
+  // Mapeo rápido de parientes directos para Focus Mode
   const directRelativesMap = useMemo(() => {
-    const map = new Map<string, Set<string>>();
-    personas.forEach((p) => map.set(p.id, new Set<string>()));
+    const map = new Set<string>();
+    if (!focalPersonId) return map;
 
+    map.add(focalPersonId);
     relaciones.forEach((r) => {
-      map.get(r.persona_id_1)?.add(r.persona_id_2);
-      map.get(r.persona_id_2)?.add(r.persona_id_1);
+      if (r.persona_id_1 === focalPersonId) map.add(r.persona_id_2);
+      if (r.persona_id_2 === focalPersonId) map.add(r.persona_id_1);
     });
     return map;
-  }, [personas, relaciones]);
+  }, [focalPersonId, relaciones]);
 
+  // Cálculo jerárquico con Dagre
   const getLayoutedElements = useCallback(
-    (nodes: Node[], edges: Edge[], direction: 'TB' | 'LR') => {
-      const dagreGraph = new dagre.graphlib.Graph();
-      dagreGraph.setDefaultEdgeLabel(() => ({}));
-      dagreGraph.setGraph({ rankdir: direction, nodesep: 75, ranksep: 115 });
+    (nodes: Node[], edges: Edge[], dir: 'TB' | 'LR') => {
+      const g = new dagre.graphlib.Graph();
+      g.setGraph({
+        rankdir: dir,
+        nodesep: 90,
+        ranksep: 130,
+      });
+      g.setDefaultEdgeLabel(() => ({}));
+
+      const nodeWidth = 270;
+      const nodeHeight = 95;
 
       nodes.forEach((node) => {
-        dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight });
+        g.setNode(node.id, { width: nodeWidth, height: nodeHeight });
       });
 
       edges.forEach((edge) => {
-        dagreGraph.setEdge(edge.source, edge.target);
+        g.setEdge(edge.source, edge.target);
       });
 
-      dagre.layout(dagreGraph);
+      dagre.layout(g);
 
-      nodes.forEach((node) => {
-        const nodeWithPosition = dagreGraph.node(node.id);
-        node.targetPosition = direction === 'TB' ? ('top' as any) : ('left' as any);
-        node.sourcePosition = direction === 'TB' ? ('bottom' as any) : ('right' as any);
-        node.position = {
-          x: nodeWithPosition.x - nodeWidth / 2,
-          y: nodeWithPosition.y - nodeHeight / 2,
+      const layoutedNodes = nodes.map((node) => {
+        const nodeWithPosition = g.node(node.id);
+        return {
+          ...node,
+          position: {
+            x: nodeWithPosition ? nodeWithPosition.x - nodeWidth / 2 : 0,
+            y: nodeWithPosition ? nodeWithPosition.y - nodeHeight / 2 : 0,
+          },
         };
       });
 
-      return { nodes, edges };
+      return { nodes: layoutedNodes, edges };
     },
     []
   );
@@ -89,34 +375,40 @@ export default function TreeDiagram({
 
     return personas.map((p) => {
       const isFocal = focalPersonId === p.id;
-      const isHovered = hoveredNodeId === p.id;
+      const isDirectRelative = directRelativesMap.has(p.id);
 
-      // Calcular atenuación si hay un centro activo y no es pariente directo ni el propio nodo
-      let isDimmed = false;
-      if (activeCenterId && activeCenterId !== p.id) {
-        const relatives = directRelativesMap.get(activeCenterId);
-        if (!relatives?.has(p.id)) {
-          isDimmed = true;
-        }
+      // Atenuación inteligente en modo enfoque
+      let opacityClass = 'opacity-100';
+      if (activeCenterId && !isDirectRelative && p.id !== activeCenterId) {
+        opacityClass = 'opacity-40 grayscale-[30%]';
       }
 
-      const kinshipRaw = focalPersonId ? calculateKinship(focalPersonId, p.id, personas, relaciones) : null;
-      const badgeRole = isFocal ? 'YO' : kinshipRaw || 'FAMILIAR';
+      // Parentesco respecto a la persona elegida
+      const kinship = focalPersonId
+        ? calculateKinship(focalPersonId, p.id, personas, relaciones)
+        : null;
 
-      // Fechas reducidas y minimalistas (ej: 1999 — Presente o 1942 — 2023)
-      const getYearOnly = (dateStr?: string | null) => {
-        if (!dateStr) return null;
-        const yearMatch = dateStr.match(/\d{4}/);
-        return yearMatch ? yearMatch[0] : null;
-      };
+      const badgeRole = isFocal
+        ? 'Yo'
+        : kinship
+        ? kinship
+        : 'Familiar';
 
-      const birthYear = getYearOnly(p.fecha_nacimiento);
-      const deathYear = getYearOnly(p.fecha_fallecimiento);
-      const dateDisplay = birthYear
-        ? `${birthYear} — ${deathYear || 'Presente'}`
-        : deathYear
-        ? `† ${deathYear}`
-        : 'Familia';
+      const yearBirth = p.fecha_nacimiento ? p.fecha_nacimiento.split('-')[0] : '';
+      const yearDeath = p.fecha_fallecimiento ? p.fecha_fallecimiento.split('-')[0] : '';
+      const dateDisplay =
+        yearBirth && yearDeath
+          ? `${yearBirth} – ${yearDeath}`
+          : yearBirth
+          ? `n. ${yearBirth}`
+          : '—';
+
+      const ringColor = isFocal
+        ? 'border-blue-500 shadow-[0_8px_30px_rgba(37,99,235,0.18)] bg-blue-50/40 dark:bg-blue-950/30'
+        : 'border-slate-200/80 dark:border-slate-800/80 hover:border-slate-400 dark:hover:border-slate-600 bg-white dark:bg-slate-900 shadow-sm';
+
+      const nodeWidth = 270;
+      const nodeHeight = 95;
 
       return {
         id: p.id,
@@ -125,27 +417,15 @@ export default function TreeDiagram({
             <div
               onMouseEnter={() => setHoveredNodeId(p.id)}
               onMouseLeave={() => setHoveredNodeId(null)}
-              onDoubleClick={() => onSelectFocalPerson(p.id)}
               onClick={() => onSelectPersonForDetail(p)}
-              style={{ width: `${nodeWidth}px`, height: `${nodeHeight}px` }}
-              className={`group cursor-pointer relative flex items-center justify-between p-3.5 rounded-2xl transition-all duration-250 select-none ${
-                isDimmed ? 'opacity-40 grayscale-[30%]' : 'opacity-100'
-              } ${
-                isHovered ? 'scale-[1.02] shadow-lg' : 'scale-100'
-              } ${
-                isFocal
-                  ? 'bg-blue-50/80 dark:bg-blue-950/40 border-2 border-blue-600 dark:border-blue-500 shadow-[0_0_25px_rgba(37,99,235,0.18)]'
-                  : 'bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs hover:border-slate-300 dark:hover:border-slate-700'
-              }`}
+              className={`group w-[270px] h-[95px] rounded-3xl p-3.5 border transition-all duration-200 flex items-center justify-between cursor-pointer ${ringColor} ${opacityClass}`}
             >
-              {/* Contenido principal: Avatar + Nombre + Fecha */}
-              <div className="flex items-center gap-3 min-w-0 flex-1">
-                {/* Avatar circular grande (48px) */}
-                {p.foto ? (
+              <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                {showPhotos && p.foto ? (
                   <img
                     src={p.foto}
-                    alt={p.nombres || ''}
-                    className="w-12 h-12 rounded-full object-cover shrink-0 ring-2 ring-white dark:ring-slate-800 shadow-xs"
+                    alt=""
+                    className="w-12 h-12 rounded-full object-cover ring-2 ring-white dark:ring-slate-800 shadow-xs shrink-0"
                   />
                 ) : (
                   <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-center font-bold text-base tracking-tight shrink-0 ring-2 ring-white dark:ring-slate-800 shadow-xs">
@@ -154,18 +434,22 @@ export default function TreeDiagram({
                 )}
 
                 <div className="min-w-0 flex-1 text-left">
-                  {/* Nombre: peso 600, 16px, máx 2 líneas */}
-                  <h4 className="font-semibold text-[15px] text-slate-900 dark:text-slate-100 leading-snug line-clamp-2">
-                    {p.nombres} {p.apellidos}
-                  </h4>
-                  {/* Fecha de vida minimalista */}
+                  <div className="flex items-center gap-1.5">
+                    <h4 className="font-semibold text-[15px] text-slate-900 dark:text-slate-100 leading-snug truncate">
+                      {p.nombres} {p.apellidos}
+                    </h4>
+                  </div>
                   <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5 tracking-tight">
                     {dateDisplay}
                   </p>
+                  {showGenerations && (
+                    <span className="inline-block mt-0.5 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                      Gen Familiar
+                    </span>
+                  )}
                 </div>
               </div>
 
-              {/* Badge del Rol (cápsula tenue derecha superior) y Botón de Punto de Vista */}
               <div className="flex flex-col items-end justify-between h-full pl-2 shrink-0">
                 <span
                   className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase ${
@@ -208,6 +492,8 @@ export default function TreeDiagram({
     focalPersonId,
     hoveredNodeId,
     directRelativesMap,
+    showPhotos,
+    showGenerations,
     onSelectFocalPerson,
     onSelectPersonForDetail,
   ]);
@@ -216,23 +502,19 @@ export default function TreeDiagram({
     const activeCenterId = hoveredNodeId || focalPersonId;
 
     return relaciones.map((r) => {
-      // Por defecto gris claro sobrio (#CBD5E1 en light, #334155 en dark)
       let strokeColor = '#CBD5E1';
       let strokeWidth = 2;
 
-      // Si uno de los nodos conectados es el Punto de Vista, se ilumina en azul
       if (focalPersonId && (r.persona_id_1 === focalPersonId || r.persona_id_2 === focalPersonId)) {
         strokeColor = '#2563EB';
         strokeWidth = 2.5;
       }
 
-      // Si está en hover el nodo conectado, también le damos un toque azulado
       if (hoveredNodeId && (r.persona_id_1 === hoveredNodeId || r.persona_id_2 === hoveredNodeId)) {
         strokeColor = '#3B82F6';
         strokeWidth = 2.5;
       }
 
-      // Atenuación de líneas lejanas en Focus Mode
       let opacity = 1;
       if (activeCenterId && r.persona_id_1 !== activeCenterId && r.persona_id_2 !== activeCenterId) {
         opacity = 0.35;
@@ -248,7 +530,7 @@ export default function TreeDiagram({
         target: r.persona_id_2,
         type: 'smoothstep',
         animated: isConyuge && !!focalPersonId,
-        label: showEdgeLabels ? relType.toUpperCase() : undefined,
+        label: showLabels ? relType.toUpperCase() : undefined,
         style: {
           stroke: strokeColor,
           strokeWidth,
@@ -259,7 +541,7 @@ export default function TreeDiagram({
         labelStyle: { fontSize: 9, fontWeight: 700, fill: '#64748B' },
       };
     });
-  }, [relaciones, focalPersonId, hoveredNodeId, showEdgeLabels]);
+  }, [relaciones, focalPersonId, hoveredNodeId, showLabels]);
 
   const layouted = useMemo(
     () => getLayoutedElements(initialNodes, initialEdges, orientation),
@@ -283,21 +565,35 @@ export default function TreeDiagram({
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         fitView
-        fitViewOptions={{ padding: 0.2, duration: 300 }}
+        fitViewOptions={{ padding: 0.15, duration: 400 }}
         minZoom={0.15}
-        maxZoom={2}
+        maxZoom={2.2}
         className="w-full h-full"
       >
-        <Controls
-          showInteractive={false}
-          className="!bg-white dark:!bg-slate-900 !border-slate-200/80 dark:!border-slate-800 !shadow-lg !rounded-2xl overflow-hidden"
+        {/* Barra de Herramientas Flotante Inteligente sobre el Canvas */}
+        <FloatingSmartToolbar
+          personas={personas}
+          focalPersonId={focalPersonId}
+          onSelectFocalPerson={onSelectFocalPerson}
+          onSelectPersonForDetail={onSelectPersonForDetail}
+          orientation={orientation}
+          setOrientation={setOrientation}
+          showLabels={showLabels}
+          setShowLabels={setShowLabels}
+          showPhotos={showPhotos}
+          setShowPhotos={setShowPhotos}
+          showGenerations={showGenerations}
+          setShowGenerations={setShowGenerations}
         />
+
+        {/* Minimapa minimalista, translúcido en la esquina inferior derecha */}
         <MiniMap
           zoomable
           pannable
-          className="!bg-white/80 dark:!bg-slate-900/80 !border-slate-200/80 dark:!border-slate-800 !shadow-lg !rounded-2xl"
-          maskColor="rgba(241, 245, 249, 0.6)"
+          className="!bg-white/70 dark:!bg-slate-900/70 !border-slate-200/60 dark:!border-slate-800/60 !shadow-lg !rounded-2xl !bottom-20 !right-6 opacity-80 hover:opacity-100 transition-opacity"
+          maskColor="rgba(241, 245, 249, 0.5)"
         />
+
         <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#CBD5E1" />
       </ReactFlow>
     </div>
