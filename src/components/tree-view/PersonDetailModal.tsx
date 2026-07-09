@@ -12,6 +12,8 @@ import {
   Cake,
   ExternalLink,
   Edit3,
+  Maximize2,
+  PanelRight,
 } from 'lucide-react';
 
 interface PersonDetailModalProps {
@@ -20,6 +22,7 @@ interface PersonDetailModalProps {
   personas: Persona[];
   relaciones: Relacion[];
   mode?: 'popup' | 'drawer';
+  onToggleMode?: () => void;
   onClose: () => void;
   onSelectRelative: (persona: Persona) => void;
   onSetFocalPerson: (id: string) => void;
@@ -30,6 +33,8 @@ export default function PersonDetailModal({
   focalPersonId,
   personas,
   relaciones,
+  mode = 'drawer',
+  onToggleMode,
   onClose,
   onSelectRelative,
   onSetFocalPerson,
@@ -76,16 +81,34 @@ export default function PersonDetailModal({
   const ageDisplay = formatAgeDisplay(persona.fecha_nacimiento, persona.fecha_fallecimiento);
   const bdayInfo = !persona.fecha_fallecimiento ? getBirthdayInfo(persona.fecha_nacimiento) : null;
 
-  return (
-    <div className="fixed inset-y-0 right-0 z-50 flex pointer-events-none animate-fade-in">
-      {/* Backdrop suave sólo en móvil para no bloquear canvas en desktop */}
-      <div
-        onClick={onClose}
-        className="fixed inset-0 bg-slate-900/10 dark:bg-black/30 backdrop-blur-[1px] md:hidden pointer-events-auto"
-      />
+  const isPopup = mode === 'popup';
 
-      {/* Drawer estilo Linear / Figma / HIG (420px) */}
-      <aside className="pointer-events-auto relative w-full md:w-[420px] h-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border-l border-slate-200/80 dark:border-slate-800/80 shadow-2xl flex flex-col transition-all">
+  return (
+    <div
+      className={
+        isPopup
+          ? 'fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/60 dark:bg-black/70 backdrop-blur-sm pointer-events-auto animate-fade-in'
+          : 'fixed inset-y-0 right-0 z-50 flex pointer-events-none animate-fade-in'
+      }
+      onClick={isPopup ? onClose : undefined}
+    >
+      {/* Backdrop suave sólo en móvil cuando es Drawer */}
+      {!isPopup && (
+        <div
+          onClick={onClose}
+          className="fixed inset-0 bg-slate-900/10 dark:bg-black/30 backdrop-blur-[1px] md:hidden pointer-events-auto"
+        />
+      )}
+
+      {/* Contenedor Principal: Modal Pop-up (centrada) o Drawer (lateral) */}
+      <aside
+        onClick={isPopup ? (e) => e.stopPropagation() : undefined}
+        className={
+          isPopup
+            ? 'pointer-events-auto relative w-full max-w-2xl max-h-[88vh] bg-white/98 dark:bg-slate-900/98 backdrop-blur-2xl rounded-3xl border border-slate-200/80 dark:border-slate-800/80 shadow-2xl flex flex-col overflow-hidden transition-all'
+            : 'pointer-events-auto relative w-full md:w-[420px] h-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border-l border-slate-200/80 dark:border-slate-800/80 shadow-2xl flex flex-col transition-all'
+        }
+      >
         {/* Top bar */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800/80 shrink-0">
           <div className="flex items-center gap-2">
@@ -104,13 +127,38 @@ export default function PersonDetailModal({
               </span>
             )}
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            title="Cerrar panel"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            {onToggleMode && (
+              <button
+                onClick={onToggleMode}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all border border-slate-200/60 dark:border-slate-700/60 shadow-xs"
+                title={
+                  isPopup
+                    ? 'Anclar como Panel Lateral Derecho'
+                    : 'Abrir como Ventana Modal Pop-up flotante'
+                }
+              >
+                {isPopup ? (
+                  <>
+                    <PanelRight className="w-3.5 h-3.5 text-blue-500" />
+                    <span>Panel lateral</span>
+                  </>
+                ) : (
+                  <>
+                    <Maximize2 className="w-3.5 h-3.5 text-blue-500" />
+                    <span>Pop-up</span>
+                  </>
+                )}
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              title="Cerrar ficha"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Content scrollable */}

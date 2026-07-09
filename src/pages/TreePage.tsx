@@ -36,8 +36,19 @@ export default function TreePage() {
     document.documentElement.classList.contains('dark')
   );
 
-  // Inspector de detalles como Panel Lateral Derecho (Drawer 420px)
+  // Inspector de detalles: 'drawer' (panel lateral) o 'popup' (ventana modal centrada)
   const [selectedPersonForDetail, setSelectedPersonForDetail] = useState<Persona | null>(null);
+  const [detailMode, setDetailMode] = useState<'drawer' | 'popup'>(() => {
+    return (localStorage.getItem('misraices_detail_mode') as 'drawer' | 'popup') || 'drawer';
+  });
+
+  const handleToggleDetailMode = () => {
+    setDetailMode((prev) => {
+      const next = prev === 'drawer' ? 'popup' : 'drawer';
+      localStorage.setItem('misraices_detail_mode', next);
+      return next;
+    });
+  };
 
   const toggleDarkMode = () => {
     document.documentElement.classList.toggle('dark');
@@ -287,6 +298,8 @@ export default function TreePage() {
           focalPersonId={focalPersonId}
           personas={personas}
           relaciones={relaciones}
+          mode={detailMode}
+          onToggleMode={handleToggleDetailMode}
           onClose={() => setSelectedPersonForDetail(null)}
           onSelectRelative={(p) => setSelectedPersonForDetail(p)}
           onSetFocalPerson={(id) => setFocalPersonId(id)}

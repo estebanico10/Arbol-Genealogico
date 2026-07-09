@@ -54,7 +54,7 @@ function buildKinshipGraph(personas: Persona[], relaciones: Relacion[]): Map<str
     } else if (tipo_relacion === 'hijo' || tipo_relacion === 'hija') {
       addEdge(p1, p2, 'parent');
       addEdge(p2, p1, 'child');
-    } else if (tipo_relacion === 'esposo' || tipo_relacion === 'esposa') {
+    } else if (tipo_relacion === 'esposo' || tipo_relacion === 'esposa' || tipo_relacion === 'conyuge' || tipo_relacion === 'pareja') {
       addEdge(p1, p2, 'spouse');
       addEdge(p2, p1, 'spouse');
     } else if (tipo_relacion === 'hermano' || tipo_relacion === 'hermana') {
