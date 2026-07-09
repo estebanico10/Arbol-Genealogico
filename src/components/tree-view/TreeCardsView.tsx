@@ -8,6 +8,7 @@ interface TreeCardsViewProps {
   relaciones: Relacion[];
   focalPersonId: string | null;
   onSelectFocalPerson: (id: string | null) => void;
+  onSelectPersonForDetail: (persona: Persona) => void;
 }
 
 export default function TreeCardsView({
@@ -15,6 +16,7 @@ export default function TreeCardsView({
   relaciones,
   focalPersonId,
   onSelectFocalPerson,
+  onSelectPersonForDetail,
 }: TreeCardsViewProps) {
   const [search, setSearch] = useState('');
 
@@ -59,7 +61,8 @@ export default function TreeCardsView({
           return (
             <div
               key={p.id}
-              className={`flex flex-col justify-between p-5 rounded-2xl transition-all duration-200 ${
+              onClick={() => onSelectPersonForDetail(p)}
+              className={`group cursor-pointer flex flex-col justify-between p-5 rounded-2xl transition-all duration-200 ${
                 isFocal
                   ? 'bg-blue-50/80 dark:bg-blue-950/60 ring-2 ring-blue-500 shadow-lg'
                   : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md'
@@ -148,7 +151,10 @@ export default function TreeCardsView({
               <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-700/60">
                 {!isFocal ? (
                   <button
-                    onClick={() => onSelectFocalPerson(p.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectFocalPerson(p.id);
+                    }}
                     className="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-blue-600 hover:text-white dark:bg-slate-700 dark:hover:bg-blue-600 text-slate-700 dark:text-slate-200 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
                   >
                     <Eye className="w-4 h-4" /> Ver desde su Punto de Vista

@@ -8,6 +8,7 @@ interface TreeTableViewProps {
   relaciones: Relacion[];
   focalPersonId: string | null;
   onSelectFocalPerson: (id: string | null) => void;
+  onSelectPersonForDetail: (persona: Persona) => void;
 }
 
 export default function TreeTableView({
@@ -15,6 +16,7 @@ export default function TreeTableView({
   relaciones,
   focalPersonId,
   onSelectFocalPerson,
+  onSelectPersonForDetail,
 }: TreeTableViewProps) {
   const [search, setSearch] = useState('');
 
@@ -70,7 +72,8 @@ export default function TreeTableView({
               return (
                 <tr
                   key={p.id}
-                  className={`hover:bg-slate-50/80 dark:hover:bg-slate-700/30 transition-colors ${
+                  onClick={() => onSelectPersonForDetail(p)}
+                  className={`cursor-pointer hover:bg-slate-50/80 dark:hover:bg-slate-700/30 transition-colors ${
                     isFocal ? 'bg-blue-50/50 dark:bg-blue-950/40' : ''
                   }`}
                 >
@@ -137,7 +140,10 @@ export default function TreeTableView({
                   <td className="p-4 text-right">
                     {!isFocal ? (
                       <button
-                        onClick={() => onSelectFocalPerson(p.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectFocalPerson(p.id);
+                        }}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-blue-600 hover:text-white dark:bg-slate-700 dark:hover:bg-blue-600 text-slate-700 dark:text-slate-200 text-xs font-semibold transition-colors"
                       >
                         <Eye className="w-3.5 h-3.5" /> Punto de Vista

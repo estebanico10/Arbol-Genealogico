@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
-import { ArrowLeft, Compass } from 'lucide-react';
+import { ArrowLeft, Compass, AppWindow, PanelRightOpen } from 'lucide-react';
 import TreeDiagram from '../components/tree-view/TreeDiagram';
 import TreeCardsView from '../components/tree-view/TreeCardsView';
 import TreeTableView from '../components/tree-view/TreeTableView';
+import PersonDetailModal from '../components/tree-view/PersonDetailModal';
+import { Persona } from '../types/database';
 
 export default function TreePage() {
   const { id } = useParams<{ id: string }>();
@@ -12,6 +14,10 @@ export default function TreePage() {
   const { arboles, selectedArbol, setSelectedArbol, loading, personas, relaciones } = useData();
   const [viewMode, setViewMode] = useState<'diagram' | 'grid' | 'table'>('diagram');
   const [focalPersonId, setFocalPersonId] = useState<string | null>(null);
+
+  // Estado para el inspector de detalles
+  const [selectedPersonForDetail, setSelectedPersonForDetail] = useState<Persona | null>(null);
+  const [detailMode, setDetailMode] = useState<'popup' | 'drawer'>('popup');
 
   useEffect(() => {
     if (id) {
@@ -47,7 +53,7 @@ export default function TreePage() {
   return (
     <div className="space-y-4 animate-fade-in flex flex-col h-[calc(100vh-11rem)]">
       {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
         <div>
           <Link
             to="/"
@@ -56,12 +62,12 @@ export default function TreePage() {
             <ArrowLeft className="w-4 h-4 mr-1" />
             Volver a árboles
           </Link>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
               {selectedArbol.nombre}
             </h1>
             {focalPerson && (
-              <span className="hidden md:inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 dark:bg-blue-900/80 dark:text-blue-200">
+              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 dark:bg-blue-900/80 dark:text-blue-200">
                 <Compass className="w-3.5 h-3.5" />
                 Punto de Vista: {focalPerson.nombres}
               </span>
@@ -69,38 +75,72 @@ export default function TreePage() {
           </div>
         </div>
 
-        {/* Botones de Vista */}
-        <div className="flex p-1 bg-slate-200/80 dark:bg-slate-800 rounded-xl border border-slate-300/60 dark:border-slate-700">
-          <button
-            onClick={() => setViewMode('diagram')}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-              viewMode === 'diagram'
-                ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            Diagrama
-          </button>
-          <button
-            onClick={() => setViewMode('grid')}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-              viewMode === 'grid'
-                ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            Tarjetas
-          </button>
-          <button
-            onClick={() => setViewMode('table')}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-              viewMode === 'table'
-                ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            Tabla
-          </button>
+        {/* Grupo de controles derecha */}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Selector de Modo de Detalle */}
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 px-2.5 hidden sm:inline">
+              Detalle en:
+            </span>
+            <button
+              onClick={() => setDetailMode('popup')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                detailMode === 'popup'
+                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+              title="Abrir detalles como ventana Modal centrada"
+            >
+              <AppWindow className="w-3.5 h-3.5" />
+              <span>Modal Pop-up</span>
+            </button>
+            <button
+              onClick={() => setDetailMode('drawer')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                detailMode === 'drawer'
+                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+              title="Abrir detalles como panel lateral"
+            >
+              <PanelRightOpen className="w-3.5 h-3.5" />
+              <span>Panel Lateral</span>
+            </button>
+          </div>
+
+          {/* Botones de Modo de Vista principal */}
+          <div className="flex p-1 bg-slate-200/80 dark:bg-slate-800 rounded-xl border border-slate-300/60 dark:border-slate-700">
+            <button
+              onClick={() => setViewMode('diagram')}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                viewMode === 'diagram'
+                  ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Diagrama
+            </button>
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                viewMode === 'grid'
+                  ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Tarjetas
+            </button>
+            <button
+              onClick={() => setViewMode('table')}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                viewMode === 'table'
+                  ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Tabla
+            </button>
+          </div>
         </div>
       </div>
 
@@ -138,6 +178,7 @@ export default function TreePage() {
                 relaciones={relaciones}
                 focalPersonId={focalPersonId}
                 onSelectFocalPerson={setFocalPersonId}
+                onSelectPersonForDetail={setSelectedPersonForDetail}
               />
             )}
             {viewMode === 'grid' && (
@@ -146,6 +187,7 @@ export default function TreePage() {
                 relaciones={relaciones}
                 focalPersonId={focalPersonId}
                 onSelectFocalPerson={setFocalPersonId}
+                onSelectPersonForDetail={setSelectedPersonForDetail}
               />
             )}
             {viewMode === 'table' && (
@@ -154,11 +196,24 @@ export default function TreePage() {
                 relaciones={relaciones}
                 focalPersonId={focalPersonId}
                 onSelectFocalPerson={setFocalPersonId}
+                onSelectPersonForDetail={setSelectedPersonForDetail}
               />
             )}
           </>
         )}
       </div>
+
+      {/* Inspector de Detalle (Modal Pop-up o Panel Lateral) */}
+      <PersonDetailModal
+        persona={selectedPersonForDetail}
+        focalPersonId={focalPersonId}
+        personas={personas}
+        relaciones={relaciones}
+        mode={detailMode}
+        onClose={() => setSelectedPersonForDetail(null)}
+        onSelectRelative={(p) => setSelectedPersonForDetail(p)}
+        onSetFocalPerson={(id) => setFocalPersonId(id)}
+      />
     </div>
   );
 }
