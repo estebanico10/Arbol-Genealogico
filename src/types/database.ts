@@ -21,6 +21,8 @@ export interface Persona {
   celular: string | null;
   email: string | null;
   biografia: string | null;
+  profesion?: string | null;
+  apodo?: string | null;
   created_at: string;
 }
 
