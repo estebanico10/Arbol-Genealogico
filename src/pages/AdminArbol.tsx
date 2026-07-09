@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -9,8 +9,9 @@ import { ArrowLeft } from 'lucide-react';
 export default function AdminArbol() {
   const { id } = useParams<{ id: string }>();
   const { user, loading: authLoading } = useAuth();
-  const { arboles, selectedArbol, setSelectedArbol, loading: dataLoading } = useData();
+  const { arboles, selectedArbol, setSelectedArbol, fetchArbolById } = useData();
   const navigate = useNavigate();
+  const [initLoading, setInitLoading] = useState(true);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -19,26 +20,79 @@ export default function AdminArbol() {
   }, [user, authLoading, navigate]);
 
   useEffect(() => {
-    if (id) {
-      const arbol = arboles.find(a => a.id === id);
-      if (arbol) {
-        setSelectedArbol(arbol);
-      }
-    }
-  }, [id, arboles, setSelectedArbol]);
+    let active = true;
+    const initTree = async () => {
+      if (!id) return;
+      setInitLoading(true);
 
-  if (authLoading || dataLoading || !selectedArbol) {
-    return <div className="p-8 text-center">Cargando...</div>;
+      // Verificar si ya está seleccionado
+      if (selectedArbol && selectedArbol.id === id) {
+        setInitLoading(false);
+        return;
+      }
+
+      // Buscar en array en memoria primero
+      const foundInArray = arboles.find((a) => a.id === id);
+      if (foundInArray) {
+        setSelectedArbol(foundInArray);
+        setInitLoading(false);
+        return;
+      }
+
+      // Si no está en memoria (ej: acceso directo por URL o recarga rápida), buscar directamente
+      const fetched = await fetchArbolById(id);
+      if (active) {
+        if (fetched) {
+          setSelectedArbol(fetched);
+        }
+        setInitLoading(false);
+      }
+    };
+
+    initTree();
+    return () => {
+      active = false;
+    };
+  }, [id, arboles, selectedArbol, setSelectedArbol, fetchArbolById]);
+
+  if (authLoading || initLoading) {
+    return (
+      <div className="space-y-8 animate-pulse">
+        <div>
+          <div className="h-4 w-36 bg-gray-200 dark:bg-gray-700 rounded mb-3"></div>
+          <div className="h-8 w-72 bg-gray-300 dark:bg-gray-600 rounded-xl"></div>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="h-96 bg-gray-100 dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700">
+            <div className="h-6 w-48 bg-gray-300 dark:bg-gray-600 rounded mb-6"></div>
+            <div className="space-y-4">
+              <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded-xl"></div>
+              <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded-xl"></div>
+              <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded-xl"></div>
+            </div>
+          </div>
+          <div className="h-96 bg-gray-100 dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700">
+            <div className="h-6 w-48 bg-gray-300 dark:bg-gray-600 rounded mb-6"></div>
+            <div className="space-y-4">
+              <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded-xl"></div>
+              <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded-xl"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-8 animate-fade-in">
       <div>
-        <Link to="/admin" className="inline-flex items-center text-sm font-medium opacity-70 hover:opacity-100 hover:text-primary transition-colors mb-2">
-          <ArrowLeft className="w-4 h-4 mr-1" />
+        <Link to="/admin" className="inline-flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary transition-colors mb-2">
+          <ArrowLeft className="w-4 h-4 mr-1.5" />
           Volver al Dashboard
         </Link>
-        <h1 className="text-3xl font-bold text-primary">Gestionar: {selectedArbol.nombre}</h1>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+          Gestionar: <span className="text-primary">{selectedArbol.nombre}</span>
+        </h1>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

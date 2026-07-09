@@ -8,15 +8,15 @@ interface RelationManagerProps {
   arbolId: string;
 }
 
-const TIPO_RELACIONES: { value: TipoRelacion; label: string }[] = [
-  { value: 'padre', label: 'Es Padre de' },
-  { value: 'madre', label: 'Es Madre de' },
-  { value: 'hijo', label: 'Es Hijo de' },
-  { value: 'hija', label: 'Es Hija de' },
-  { value: 'esposo', label: 'Es Esposo / Cónyuge de' },
-  { value: 'esposa', label: 'Es Esposa / Cónyuge de' },
-  { value: 'hermano', label: 'Es Hermano de' },
-  { value: 'hermana', label: 'Es Hermana de' },
+const TIPO_RELACIONES: { value: TipoRelacion; label: string; explicacion: string }[] = [
+  { value: 'padre', label: 'Es Padre de', explicacion: 'Padre biológico o adoptivo de' },
+  { value: 'madre', label: 'Es Madre de', explicacion: 'Madre biológica o adoptiva de' },
+  { value: 'hijo', label: 'Es Hijo de', explicacion: 'Hijo de' },
+  { value: 'hija', label: 'Es Hija de', explicacion: 'Hija de' },
+  { value: 'esposo', label: 'Es Esposo / Cónyuge de', explicacion: 'Esposo / Cónyuge de' },
+  { value: 'esposa', label: 'Es Esposa / Cónyuge de', explicacion: 'Esposa / Cónyuge de' },
+  { value: 'hermano', label: 'Es Hermano de', explicacion: 'Hermano de' },
+  { value: 'hermana', label: 'Es Hermana de', explicacion: 'Hermana de' },
 ];
 
 export default function RelationManager({ arbolId }: RelationManagerProps) {
@@ -42,8 +42,8 @@ export default function RelationManager({ arbolId }: RelationManagerProps) {
       setTipoRelacion(rel.tipo_relacion);
     } else {
       setEditingRelacion(null);
-      setPersonaId1('');
-      setPersonaId2('');
+      setPersonaId1(personas.length > 0 ? personas[0].id : '');
+      setPersonaId2(personas.length > 1 ? personas[1].id : '');
       setTipoRelacion('padre');
     }
     setIsModalOpen(true);
@@ -72,7 +72,7 @@ export default function RelationManager({ arbolId }: RelationManagerProps) {
         alert('Error al actualizar relación: ' + error.message);
       } else {
         setIsModalOpen(false);
-        fetchDataForArbol(arbolId);
+        await fetchDataForArbol(arbolId, true);
       }
     } else {
       const { error } = await supabase.from('relaciones').insert([data]);
@@ -80,7 +80,7 @@ export default function RelationManager({ arbolId }: RelationManagerProps) {
         alert('Error al crear relación: ' + error.message);
       } else {
         setIsModalOpen(false);
-        fetchDataForArbol(arbolId);
+        await fetchDataForArbol(arbolId, true);
       }
     }
     setSaving(false);
@@ -92,19 +92,24 @@ export default function RelationManager({ arbolId }: RelationManagerProps) {
       if (error) {
         alert('Error al eliminar relación: ' + error.message);
       } else {
-        fetchDataForArbol(arbolId);
+        await fetchDataForArbol(arbolId, true);
       }
     }
   };
 
   const getPersonName = (id: string) => {
     const p = personas.find((p) => p.id === id);
-    return p ? `${p.nombres || ''} ${p.apellidos}`.trim() : 'Persona no encontrada';
+    return p ? `${p.nombres || ''} ${p.apellidos}`.trim() : 'Persona no seleccionada';
   };
 
   const getRelationLabel = (tipo: TipoRelacion) => {
     const found = TIPO_RELACIONES.find((t) => t.value === tipo);
     return found ? found.label : tipo;
+  };
+
+  const getRelationExplanation = (tipo: TipoRelacion) => {
+    const found = TIPO_RELACIONES.find((t) => t.value === tipo);
+    return found ? found.explicacion : tipo;
   };
 
   return (
@@ -119,7 +124,7 @@ export default function RelationManager({ arbolId }: RelationManagerProps) {
         </div>
         <button
           onClick={() => openModal()}
-          className="flex items-center gap-1.5 px-3.5 py-2 bg-green-600 text-white font-medium rounded-xl hover:bg-green-700 text-sm transition-colors shadow-sm"
+          className="flex items-center gap-1.5 px-3.5 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-xl text-sm transition-colors shadow-sm"
           disabled={personas.length < 2}
         >
           <Plus className="w-4 h-4" />
@@ -137,7 +142,7 @@ export default function RelationManager({ arbolId }: RelationManagerProps) {
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
         {relaciones.length === 0 ? (
           <p className="p-8 text-center text-gray-500 dark:text-gray-400 text-sm">
-            No hay relaciones ni conexiones familiares definidas aún.
+            No hay relaciones ni conexiones familiares definidas aún. Puedes agregarlas también con el botón "+ Familiar" en la tabla de personas.
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -194,7 +199,7 @@ export default function RelationManager({ arbolId }: RelationManagerProps) {
       {/* Modal Crear / Editar Relación */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-surface-light dark:bg-surface-dark rounded-2xl max-w-md w-full shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
               <h3 className="font-bold text-lg text-gray-900 dark:text-gray-100">
                 {editingRelacion ? 'Editar Conexión Familiar' : 'Nueva Conexión Familiar'}
@@ -259,6 +264,15 @@ export default function RelationManager({ arbolId }: RelationManagerProps) {
                 </select>
               </div>
 
+              {/* Previsualización en lenguaje natural */}
+              {personaId1 && personaId2 && (
+                <div className="p-3.5 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40">
+                  <p className="text-xs text-blue-900 dark:text-blue-200 leading-relaxed">
+                    💡 <strong className="font-semibold">{getPersonName(personaId1)}</strong> {getRelationExplanation(tipoRelacion).toLowerCase()} <strong className="font-semibold">{getPersonName(personaId2)}</strong>.
+                  </p>
+                </div>
+              )}
+
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
                 <button
                   type="button"
@@ -270,9 +284,9 @@ export default function RelationManager({ arbolId }: RelationManagerProps) {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-5 py-2.5 bg-primary hover:bg-blue-600 text-white font-medium text-sm rounded-xl transition-colors disabled:opacity-70"
+                  className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white font-medium text-sm rounded-xl transition-colors disabled:opacity-70"
                 >
-                  {saving ? 'Guardando...' : 'Guardar Conexión'}
+                  {saving ? 'Guardando...' : editingRelacion ? 'Guardar Cambios' : 'Crear Conexión'}
                 </button>
               </div>
             </form>
