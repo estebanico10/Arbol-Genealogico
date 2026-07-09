@@ -29,6 +29,7 @@ import {
   ArrowUpDown,
   ArrowLeftRight,
   X,
+  Heart,
 } from 'lucide-react';
 
 interface TreeDiagramProps {
@@ -74,7 +75,6 @@ function FloatingSmartToolbar({
   const [searchQuery, setSearchQuery] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Toggle de Pantalla Completa
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
@@ -83,7 +83,6 @@ function FloatingSmartToolbar({
     }
   };
 
-  // Centrar en el Punto de Vista actual
   const handleCenterOnFocal = () => {
     if (focalPersonId) {
       const node = getNode(focalPersonId);
@@ -95,7 +94,6 @@ function FloatingSmartToolbar({
     fitView({ duration: 600, padding: 0.15 });
   };
 
-  // Resultados instantáneos de búsqueda
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
     const q = searchQuery.toLowerCase();
@@ -109,10 +107,9 @@ function FloatingSmartToolbar({
       .slice(0, 6);
   }, [personas, searchQuery]);
 
-
   return (
     <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 p-1.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-slate-200/80 dark:border-slate-800/80 rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
-      {/* 1. Buscar Persona (Popover compacto) */}
+      {/* 1. Buscar Persona */}
       <div className="relative">
         <button
           onClick={() => setIsSearchOpen(!isSearchOpen)}
@@ -175,7 +172,7 @@ function FloatingSmartToolbar({
         )}
       </div>
 
-      {/* 2. Selector de Punto de Vista (ÚNICO CONTROL CON TEXTO COMPACTO) */}
+      {/* 2. Selector de Punto de Vista */}
       <div className="relative flex items-center bg-slate-100/80 dark:bg-slate-800/80 rounded-[10px] px-2.5 h-9">
         <Compass className="w-3.5 h-3.5 text-blue-600 shrink-0 mr-1.5" />
         <select
@@ -212,7 +209,7 @@ function FloatingSmartToolbar({
         {orientation === 'TB' ? <ArrowUpDown className="w-4 h-4" /> : <ArrowLeftRight className="w-4 h-4" />}
       </button>
 
-      {/* 4. Mostrar etiquetas de parentesco */}
+      {/* 4. Mostrar etiquetas de parentesco (OFF por defecto) */}
       <button
         onClick={() => setShowLabels(!showLabels)}
         className={`w-9 h-9 flex items-center justify-center rounded-[10px] transition-all ${
@@ -220,7 +217,7 @@ function FloatingSmartToolbar({
             ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600'
             : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
         }`}
-        title="Mostrar etiquetas de relación"
+        title={showLabels ? 'Ocultar etiquetas de relación' : 'Mostrar etiquetas de relación'}
       >
         <Tag className="w-4 h-4" />
       </button>
@@ -302,7 +299,7 @@ function FloatingSmartToolbar({
 }
 
 /* =========================================================================
-   COMPONENTE PRINCIPAL DEL LIENZO
+   COMPONENTE PRINCIPAL DEL LIENZO (REDISEÑO MINIMALISTA PURO)
    ========================================================================= */
 export default function TreeDiagram({
   personas,
@@ -312,12 +309,13 @@ export default function TreeDiagram({
   onSelectPersonForDetail,
 }: TreeDiagramProps) {
   const [orientation, setOrientation] = useState<'TB' | 'LR'>('TB');
-  const [showLabels, setShowLabels] = useState<boolean>(true);
+  // LAS PALABRAS PADRE, MADRE, ESPOSA, HERMANO DESAPARECEN POR DEFECTO
+  const [showLabels, setShowLabels] = useState<boolean>(false);
   const [showPhotos, setShowPhotos] = useState<boolean>(true);
   const [showGenerations, setShowGenerations] = useState<boolean>(false);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
 
-  // Mapeo rápido de parientes directos para Focus Mode
+  // Mapeo de parientes directos para Focus Mode
   const directRelativesMap = useMemo(() => {
     const map = new Set<string>();
     if (!focalPersonId) return map;
@@ -337,15 +335,17 @@ export default function TreeDiagram({
       g.setGraph({
         rankdir: dir,
         nodesep: 90,
-        ranksep: 130,
+        ranksep: 110,
       });
       g.setDefaultEdgeLabel(() => ({}));
 
-      const nodeWidth = 270;
-      const nodeHeight = 95;
+      const defaultWidth = 270;
+      const defaultHeight = 95;
 
       nodes.forEach((node) => {
-        g.setNode(node.id, { width: nodeWidth, height: nodeHeight });
+        const w = node.style?.width ? Number(node.style.width) : defaultWidth;
+        const h = node.style?.height ? Number(node.style.height) : defaultHeight;
+        g.setNode(node.id, { width: w, height: h });
       });
 
       edges.forEach((edge) => {
@@ -356,11 +356,14 @@ export default function TreeDiagram({
 
       const layoutedNodes = nodes.map((node) => {
         const nodeWithPosition = g.node(node.id);
+        const w = node.style?.width ? Number(node.style.width) : defaultWidth;
+        const h = node.style?.height ? Number(node.style.height) : defaultHeight;
+
         return {
           ...node,
           position: {
-            x: nodeWithPosition ? nodeWithPosition.x - nodeWidth / 2 : 0,
-            y: nodeWithPosition ? nodeWithPosition.y - nodeHeight / 2 : 0,
+            x: nodeWithPosition ? nodeWithPosition.x - w / 2 : 0,
+            y: nodeWithPosition ? nodeWithPosition.y - h / 2 : 0,
           },
         };
       });
@@ -370,29 +373,86 @@ export default function TreeDiagram({
     []
   );
 
+  /* =========================================================================
+     ESTRUCTURA NORMALIZADA: UNIÓN SUPERIOR DE PADRES & BUS COMPARTIDO DE HERMANOS
+     ========================================================================= */
+  const normalizedStructure = useMemo(() => {
+    const parentMap = new Map<string, Set<string>>(); // childId -> Set<parentId>
+    personas.forEach((p) => parentMap.set(p.id, new Set()));
+
+    const coupleSet = new Set<string>(); // "p1|p2"
+    const spousePairs: Array<[string, string]> = [];
+
+    // 1. Cargar relaciones directas
+    relaciones.forEach((r) => {
+      const { persona_id_1: p1, persona_id_2: p2, tipo_relacion: t } = r;
+      if (t === 'padre' || t === 'madre') {
+        parentMap.get(p2)?.add(p1);
+      } else if (t === 'hijo' || t === 'hija') {
+        parentMap.get(p1)?.add(p2);
+      } else if (t === 'conyuge' || t === 'esposo' || t === 'esposa' || t === 'pareja') {
+        const k = p1 < p2 ? `${p1}|${p2}` : `${p2}|${p1}`;
+        if (!coupleSet.has(k)) {
+          coupleSet.add(k);
+          spousePairs.push(p1 < p2 ? [p1, p2] : [p2, p1]);
+        }
+      }
+    });
+
+    // 2. Propagar padres entre hermanos (para que compartan la misma línea común)
+    relaciones.forEach((r) => {
+      const { persona_id_1: p1, persona_id_2: p2, tipo_relacion: t } = r;
+      if (t === 'hermano' || t === 'hermana') {
+        const parents1 = parentMap.get(p1);
+        const parents2 = parentMap.get(p2);
+        if (parents1 && parents2) {
+          parents1.forEach((parentId) => parents2.add(parentId));
+          parents2.forEach((parentId) => parents1.add(parentId));
+        }
+      }
+    });
+
+    // 3. Identificar parejas de padres por hijos compartidos
+    personas.forEach((child) => {
+      const parents = Array.from(parentMap.get(child.id) || []);
+      if (parents.length >= 2) {
+        for (let i = 0; i < parents.length; i++) {
+          for (let j = i + 1; j < parents.length; j++) {
+            const pa = parents[i];
+            const pb = parents[j];
+            const k = pa < pb ? `${pa}|${pb}` : `${pb}|${pa}`;
+            if (!coupleSet.has(k)) {
+              coupleSet.add(k);
+              spousePairs.push(pa < pb ? [pa, pb] : [pb, pa]);
+            }
+          }
+        }
+      }
+    });
+
+    return { parentMap, spousePairs };
+  }, [personas, relaciones]);
+
+  // Nodos del lienzo (Personas + Nodos de Unión Superior de Pareja ♡)
   const initialNodes: Node[] = useMemo(() => {
     const activeCenterId = hoveredNodeId || focalPersonId;
+    const result: Node[] = [];
 
-    return personas.map((p) => {
+    // 1. Nodos de Persona
+    personas.forEach((p) => {
       const isFocal = focalPersonId === p.id;
       const isDirectRelative = directRelativesMap.has(p.id);
 
-      // Atenuación inteligente en modo enfoque
       let opacityClass = 'opacity-100';
       if (activeCenterId && !isDirectRelative && p.id !== activeCenterId) {
         opacityClass = 'opacity-40 grayscale-[30%]';
       }
 
-      // Parentesco respecto a la persona elegida
       const kinship = focalPersonId
         ? calculateKinship(focalPersonId, p.id, personas, relaciones)
         : null;
 
-      const badgeRole = isFocal
-        ? 'Yo'
-        : kinship
-        ? kinship
-        : 'Familiar';
+      const badgeRole = isFocal ? 'Yo' : kinship || 'Familiar';
 
       const yearBirth = p.fecha_nacimiento ? p.fecha_nacimiento.split('-')[0] : '';
       const yearDeath = p.fecha_fallecimiento ? p.fecha_fallecimiento.split('-')[0] : '';
@@ -407,10 +467,7 @@ export default function TreeDiagram({
         ? 'border-blue-500 shadow-[0_8px_30px_rgba(37,99,235,0.18)] bg-blue-50/40 dark:bg-blue-950/30'
         : 'border-slate-200/80 dark:border-slate-800/80 hover:border-slate-400 dark:hover:border-slate-600 bg-white dark:bg-slate-900 shadow-sm';
 
-      const nodeWidth = 270;
-      const nodeHeight = 95;
-
-      return {
+      result.push({
         id: p.id,
         data: {
           label: (
@@ -434,11 +491,9 @@ export default function TreeDiagram({
                 )}
 
                 <div className="min-w-0 flex-1 text-left">
-                  <div className="flex items-center gap-1.5">
-                    <h4 className="font-semibold text-[15px] text-slate-900 dark:text-slate-100 leading-snug truncate">
-                      {p.nombres} {p.apellidos}
-                    </h4>
-                  </div>
+                  <h4 className="font-semibold text-[15px] text-slate-900 dark:text-slate-100 leading-snug truncate">
+                    {p.nombres} {p.apellidos}
+                  </h4>
                   <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5 tracking-tight">
                     {dateDisplay}
                   </p>
@@ -450,16 +505,21 @@ export default function TreeDiagram({
                 </div>
               </div>
 
+              {/* LAS ETIQUETAS (PADRE, MADRE, HERMANO) SÓLO APARECEN SI showLabels ES TRUE O ES EL NODO FOCO ("Yo") */}
               <div className="flex flex-col items-end justify-between h-full pl-2 shrink-0">
-                <span
-                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase ${
-                    isFocal
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                  }`}
-                >
-                  {badgeRole}
-                </span>
+                {(showLabels || isFocal) ? (
+                  <span
+                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase ${
+                      isFocal
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    {badgeRole}
+                  </span>
+                ) : (
+                  <div />
+                )}
 
                 {!isFocal && (
                   <button
@@ -479,13 +539,40 @@ export default function TreeDiagram({
         },
         position: { x: 0, y: 0 },
         style: {
-          width: nodeWidth,
-          height: nodeHeight,
+          width: 270,
+          height: 95,
           background: 'transparent',
           border: 'none',
         },
-      };
+      });
     });
+
+    // 2. Nodos de Unión de Pareja (Matrimonio / Padres combinados) -> Alianza / Corazón en el centro
+    normalizedStructure.spousePairs.forEach(([p1, p2]) => {
+      const unionId = `union-${p1}-${p2}`;
+      result.push({
+        id: unionId,
+        data: {
+          label: (
+            <div
+              className="w-8 h-8 rounded-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 shadow-sm flex items-center justify-center text-slate-400 hover:text-rose-500 transition-colors"
+              title="Unión / Matrimonio"
+            >
+              <Heart className="w-3.5 h-3.5 fill-slate-200 dark:fill-slate-800" />
+            </div>
+          ),
+        },
+        position: { x: 0, y: 0 },
+        style: {
+          width: 32,
+          height: 32,
+          background: 'transparent',
+          border: 'none',
+        },
+      });
+    });
+
+    return result;
   }, [
     personas,
     relaciones,
@@ -494,54 +581,88 @@ export default function TreeDiagram({
     directRelativesMap,
     showPhotos,
     showGenerations,
+    showLabels,
+    normalizedStructure,
     onSelectFocalPerson,
     onSelectPersonForDetail,
   ]);
 
+  // Aristas limpias: Curvas suaves (smoothstep, borderRadius: 28, strokeWidth: 2px, sin texto)
   const initialEdges: Edge[] = useMemo(() => {
-    const activeCenterId = hoveredNodeId || focalPersonId;
+    const edgesList: Edge[] = [];
+    const { parentMap, spousePairs } = normalizedStructure;
 
-    return relaciones.map((r) => {
-      let strokeColor = '#CBD5E1';
-      let strokeWidth = 2;
+    const strokeColor = '#94A3B8'; // Gris elegante uniforme que comunica por sí solo
+    const strokeWidth = 2;
 
-      if (focalPersonId && (r.persona_id_1 === focalPersonId || r.persona_id_2 === focalPersonId)) {
-        strokeColor = '#2563EB';
-        strokeWidth = 2.5;
-      }
-
-      if (hoveredNodeId && (r.persona_id_1 === hoveredNodeId || r.persona_id_2 === hoveredNodeId)) {
-        strokeColor = '#3B82F6';
-        strokeWidth = 2.5;
-      }
-
-      let opacity = 1;
-      if (activeCenterId && r.persona_id_1 !== activeCenterId && r.persona_id_2 !== activeCenterId) {
-        opacity = 0.35;
-      }
-
-      const relType = r.tipo_relacion;
-      const isConyuge =
-        relType === 'conyuge' || relType === 'esposo' || relType === 'esposa' || relType === 'pareja';
-
-      return {
-        id: r.id,
-        source: r.persona_id_1,
-        target: r.persona_id_2,
-        type: 'smoothstep',
-        animated: isConyuge && !!focalPersonId,
-        label: showLabels ? relType.toUpperCase() : undefined,
-        style: {
-          stroke: strokeColor,
-          strokeWidth,
-          opacity,
-          transition: 'all 0.25s ease-in-out',
+    // 1. Conectar Parejas al Nodo de Unión Superior (PADRE -> ♡ <- MADRE)
+    spousePairs.forEach(([p1, p2]) => {
+      const unionId = `union-${p1}-${p2}`;
+      edgesList.push(
+        {
+          id: `e-${p1}-${unionId}`,
+          source: p1,
+          target: unionId,
+          type: 'smoothstep',
+          style: { stroke: strokeColor, strokeWidth },
         },
-        labelBgStyle: { fill: 'var(--color-surface-light, #ffffff)', fillOpacity: 0.95 },
-        labelStyle: { fontSize: 9, fontWeight: 700, fill: '#64748B' },
-      };
+        {
+          id: `e-${p2}-${unionId}`,
+          source: p2,
+          target: unionId,
+          type: 'smoothstep',
+          style: { stroke: strokeColor, strokeWidth },
+        }
+      );
     });
-  }, [relaciones, focalPersonId, hoveredNodeId, showLabels]);
+
+    // 2. Conectar Hijos y Hermanos desde la Unión Superior Compartida
+    personas.forEach((child) => {
+      const parents = Array.from(parentMap.get(child.id) || []);
+
+      if (parents.length >= 2) {
+        const pa = parents[0];
+        const pb = parents[1];
+        const unionId = pa < pb ? `union-${pa}-${pb}` : `union-${pb}-${pa}`;
+        edgesList.push({
+          id: `e-${unionId}-${child.id}`,
+          source: unionId,
+          target: child.id,
+          type: 'smoothstep',
+          style: { stroke: strokeColor, strokeWidth },
+        });
+      } else if (parents.length === 1) {
+        // Un solo padre conocido en la base de datos
+        edgesList.push({
+          id: `e-${parents[0]}-${child.id}`,
+          source: parents[0],
+          target: child.id,
+          type: 'smoothstep',
+          style: { stroke: strokeColor, strokeWidth },
+        });
+      }
+    });
+
+    // 3. Hermanos sin padres registrados en la base de datos (conector horizontal limpio)
+    relaciones.forEach((r) => {
+      const { persona_id_1: p1, persona_id_2: p2, tipo_relacion: t } = r;
+      if (t === 'hermano' || t === 'hermana') {
+        const parents1 = parentMap.get(p1);
+        const parents2 = parentMap.get(p2);
+        if ((!parents1 || parents1.size === 0) && (!parents2 || parents2.size === 0)) {
+          edgesList.push({
+            id: `e-sib-${r.id}`,
+            source: p1,
+            target: p2,
+            type: 'smoothstep',
+            style: { stroke: strokeColor, strokeWidth },
+          });
+        }
+      }
+    });
+
+    return edgesList;
+  }, [personas, relaciones, normalizedStructure]);
 
   const layouted = useMemo(
     () => getLayoutedElements(initialNodes, initialEdges, orientation),
@@ -570,7 +691,6 @@ export default function TreeDiagram({
         maxZoom={2.2}
         className="w-full h-full"
       >
-        {/* Barra de Herramientas Flotante Inteligente sobre el Canvas */}
         <FloatingSmartToolbar
           personas={personas}
           focalPersonId={focalPersonId}
@@ -586,7 +706,6 @@ export default function TreeDiagram({
           setShowGenerations={setShowGenerations}
         />
 
-        {/* Minimapa minimalista, translúcido en la esquina inferior derecha */}
         <MiniMap
           zoomable
           pannable
