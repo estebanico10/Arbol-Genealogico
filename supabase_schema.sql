@@ -24,6 +24,8 @@ create table public.personas (
   lugar_fallecimiento text,
   telefono text,
   celular text,
+  email text,
+  biografia text,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 

@@ -43,6 +43,7 @@ export default function PersonManager({ arbolId }: PersonManagerProps) {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
     if (!apellidos) return alert('Los apellidos son obligatorios');
 
     const data = {
@@ -51,6 +52,10 @@ export default function PersonManager({ arbolId }: PersonManagerProps) {
       apellidos,
       fecha_nacimiento: fechaNacimiento || null,
       lugar_nacimiento: lugarNacimiento || null,
+      email: formData.get('email') as string,
+      biografia: formData.get('biografia') as string,
+      cedula: formData.get('cedula') as string,
+      foto: formData.get('foto') as string,
     };
 
     if (editingPerson) {
@@ -135,6 +140,24 @@ export default function PersonManager({ arbolId }: PersonManagerProps) {
                   <label className="block text-sm font-medium opacity-70 mb-1">Apellidos *</label>
                   <input type="text" value={apellidos} onChange={e => setApellidos(e.target.value)} required className="w-full px-3 py-2 border rounded-md dark:bg-gray-800 dark:border-gray-600 outline-none focus:border-primary" />
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium opacity-70 mb-1">Email</label>
+                  <input type="email" name="email" defaultValue={editingPerson?.email || ''} className="w-full px-3 py-2 border rounded-md dark:bg-gray-800 dark:border-gray-600 outline-none focus:border-primary" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium opacity-70 mb-1">Cédula / ID</label>
+                  <input type="text" name="cedula" defaultValue={editingPerson?.cedula || ''} className="w-full px-3 py-2 border rounded-md dark:bg-gray-800 dark:border-gray-600 outline-none focus:border-primary" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium opacity-70 mb-1">Biografía / Descripción</label>
+                <textarea name="biografia" defaultValue={editingPerson?.biografia || ''} rows={3} placeholder="Me gusta el fútbol, soy cristiano, etc..." className="w-full px-3 py-2 border rounded-md dark:bg-gray-800 dark:border-gray-600 outline-none focus:border-primary"></textarea>
+              </div>
+              <div>
+                <label className="block text-sm font-medium opacity-70 mb-1">URL de Foto (Opcional)</label>
+                <input type="url" name="foto" defaultValue={editingPerson?.foto || ''} className="w-full px-3 py-2 border rounded-md dark:bg-gray-800 dark:border-gray-600 outline-none focus:border-primary" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

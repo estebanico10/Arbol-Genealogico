@@ -1,22 +1,40 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-primary: #3b82f6;
+  --color-primary-hover: #2563eb;
   --color-secondary: #64748b;
   --color-background-light: #f8fafc;
   --color-background-dark: #0f172a;
   --color-surface-light: #ffffff;
   --color-surface-dark: #1e293b;
-  --color-text-light: #334155;
-  --color-text-dark: #cbd5e1;
+  --color-text-light: #1e293b;
+  --color-text-dark: #f1f5f9;
 }
 
 @layer base {
   body {
-    @apply bg-background-light text-text-light transition-colors duration-200;
+    @apply bg-slate-50 text-slate-900 transition-colors duration-200 antialiased;
   }
   
   .dark body {
-    @apply bg-background-dark text-text-dark;
+    @apply bg-slate-950 text-slate-100;
   }
+}
+
+/* Animaciones sutiles */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.25s ease-out forwards;
+}
+
+/* React flow canvas theme fix */
+.react-flow__background {
+  transition: background-color 0.2s ease;
 }

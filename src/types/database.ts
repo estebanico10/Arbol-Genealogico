@@ -19,6 +19,8 @@ export interface Persona {
   lugar_fallecimiento: string | null;
   telefono: string | null;
   celular: string | null;
+  email: string | null;
+  biografia: string | null;
   created_at: string;
 }
 
