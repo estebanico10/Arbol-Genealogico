@@ -13,7 +13,6 @@ import {
   Mail,
   Phone,
   Clock,
-  Sparkles,
   ListOrdered,
   CalendarDays,
   CalendarRange,
@@ -136,13 +135,53 @@ export function BirthdaysView({
     return days;
   }, [currentYear, currentMonthIndex, filteredPeople]);
 
-  const today = new Date();
+  const today = useMemo(() => new Date(), []);
   const isCurrentMonthView =
     today.getMonth() === currentMonthIndex && today.getFullYear() === currentYear;
 
   // Próximos 7 días
   const next7DaysPeople = useMemo(() => {
     return filteredPeople.filter((item) => item.bday.daysLeft <= 7);
+  }, [filteredPeople]);
+
+  // Vista Semanal (lunes a domingo de la semana actual)
+  const currentWeekDays = useMemo(() => {
+    const currentDay = today.getDay(); // 0 es Domingo
+    const distanceToMonday = currentDay === 0 ? 6 : currentDay - 1;
+    const monday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - distanceToMonday);
+    
+    const week = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i);
+      const matchingPeople = filteredPeople.filter(item => {
+        const parts = item.persona.fecha_nacimiento!.split('-');
+        const m = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        return m === d.getMonth() && day === d.getDate();
+      });
+      week.push({ date: d, people: matchingPeople });
+    }
+    return week;
+  }, [filteredPeople, today]);
+
+  // Vista Anual
+  const peopleByMonth = useMemo(() => {
+    const months = Array.from({ length: 12 }, () => [] as PersonWithBirthday[]);
+    filteredPeople.forEach(item => {
+      const m = parseInt(item.persona.fecha_nacimiento!.split('-')[1], 10) - 1;
+      if (m >= 0 && m < 12) {
+        months[m].push(item);
+      }
+    });
+    // sort each month by day
+    months.forEach(monthList => {
+      monthList.sort((a, b) => {
+        const dayA = parseInt(a.persona.fecha_nacimiento!.split('-')[2], 10);
+        const dayB = parseInt(b.persona.fecha_nacimiento!.split('-')[2], 10);
+        return dayA - dayB;
+      });
+    });
+    return months;
   }, [filteredPeople]);
 
   return (
@@ -454,16 +493,96 @@ export function BirthdaysView({
               </div>
             )}
 
-            {/* 4. VISTAS SEMANAL Y ANUAL (Sintaxis limpia de resumen) */}
-            {(calendarMode === 'semanal' || calendarMode === 'anual') && (
-              <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800/80 p-8 text-center space-y-3">
-                <Sparkles className="w-8 h-8 text-blue-500 mx-auto" />
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                  {calendarMode === 'semanal' ? 'Vista Semanal' : 'Resumen Anual de Cumpleaños'}
+            {/* 4. VISTA SEMANAL */}
+            {calendarMode === 'semanal' && (
+              <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800/80 p-6 space-y-4">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
+                  <CalendarDays className="w-5 h-5 text-blue-500" />
+                  <span>Semana Actual</span>
                 </h3>
-                <p className="text-xs text-slate-500 max-w-md mx-auto">
-                  Todos los {filteredPeople.length} miembros organizados progresivamente a lo largo del calendario.
-                </p>
+                <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
+                  {currentWeekDays.map((dayObj, i) => {
+                    const isToday = dayObj.date.toDateString() === today.toDateString();
+                    return (
+                      <div key={i} className={`flex flex-col min-h-[140px] rounded-2xl p-3 border ${isToday ? 'bg-blue-50/60 dark:bg-blue-950/30 border-blue-500/80' : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800'} transition-all`}>
+                        <div className="text-center mb-3">
+                          <p className="text-[10px] font-bold uppercase text-slate-400">{DIAS_ES[(i + 1) % 7]}</p>
+                          <p className={`text-lg font-bold ${isToday ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300'}`}>{dayObj.date.getDate()}</p>
+                        </div>
+                        <div className="flex-1 flex flex-col gap-1.5">
+                          {dayObj.people.map(item => (
+                            <div
+                              key={item.persona.id}
+                              onClick={() => onSelectPersonForDetail(item.persona)}
+                              className="group flex flex-col p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 cursor-pointer hover:border-amber-300 dark:hover:border-amber-700"
+                            >
+                              <div className="flex items-center gap-2 mb-1">
+                                {item.persona.foto ? (
+                                  <img src={item.persona.foto} alt="" className="w-5 h-5 rounded-full object-cover shrink-0" />
+                                ) : (
+                                  <div className="w-5 h-5 rounded-full bg-amber-500 text-white font-bold text-[9px] flex items-center justify-center shrink-0">
+                                    {item.persona.nombres?.[0] || ''}
+                                  </div>
+                                )}
+                                <span className="text-[10px] font-bold text-slate-800 dark:text-slate-200 truncate">{item.persona.nombres}</span>
+                              </div>
+                              <span className="text-[9px] text-amber-600 dark:text-amber-400 font-semibold">{item.bday.nextAge} años</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* 5. VISTA ANUAL */}
+            {calendarMode === 'anual' && (
+              <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800/80 p-6 space-y-6">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <CalendarRange className="w-5 h-5 text-indigo-500" />
+                  <span>Resumen Anual de Cumpleaños</span>
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {MESES_ES.map((mes, idx) => {
+                    const monthPeople = peopleByMonth[idx];
+                    return (
+                      <div key={mes} className="bg-slate-50 dark:bg-slate-800/40 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 flex flex-col h-full">
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200">{mes}</h4>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
+                            {monthPeople.length}
+                          </span>
+                        </div>
+                        {monthPeople.length === 0 ? (
+                          <div className="flex-1 flex items-center justify-center text-xs text-slate-400 italic">
+                            Ninguno
+                          </div>
+                        ) : (
+                          <div className="space-y-2 flex-1">
+                            {monthPeople.map(item => (
+                              <div
+                                key={item.persona.id}
+                                onClick={() => onSelectPersonForDetail(item.persona)}
+                                className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                              >
+                                <div className="w-6 text-center text-[10px] font-bold text-amber-500 shrink-0">
+                                  {parseInt(item.persona.fecha_nacimiento!.split('-')[2], 10)}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 truncate">
+                                    {item.persona.nombres}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>

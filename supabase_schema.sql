@@ -35,7 +35,7 @@ create table public.relaciones (
   arbol_id uuid not null references public.arboles(id) on delete cascade,
   persona_id_1 uuid not null references public.personas(id) on delete cascade,
   persona_id_2 uuid not null references public.personas(id) on delete cascade,
-  tipo_relacion text not null check (tipo_relacion in ('padre', 'madre', 'hijo', 'hija', 'esposo', 'esposa', 'hermano', 'hermana')),
+  tipo_relacion text not null check (tipo_relacion in ('padre', 'madre', 'hijo', 'hija', 'esposo', 'esposa', 'hermano', 'hermana', 'pareja', 'novio', 'novia')),
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 

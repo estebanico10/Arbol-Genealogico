@@ -1,4 +1,6 @@
 import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import { Persona, Relacion } from '../../types/database';
 import { calculateKinship } from '../../utils/kinshipCalculator';
 import { formatAgeDisplay, getBirthdayInfo } from '../../utils/ageCalculator';
@@ -12,6 +14,9 @@ import {
   Cake,
   ExternalLink,
   Edit3,
+  CreditCard,
+  Smartphone,
+  MapPinOff,
   Maximize2,
   PanelRight,
 } from 'lucide-react';
@@ -39,10 +44,11 @@ export default function PersonDetailModal({
   onSelectRelative,
   onSetFocalPerson,
 }: PersonDetailModalProps) {
-  if (!persona) return null;
+  const { user } = useAuth();
+  const navigate = useNavigate();
 
-  const kinship = focalPersonId ? calculateKinship(focalPersonId, persona.id, personas, relaciones) : null;
-  const isFocal = focalPersonId === persona.id;
+  const kinship = focalPersonId && persona ? calculateKinship(focalPersonId, persona.id, personas, relaciones) : null;
+  const isFocal = focalPersonId === persona?.id;
 
   // Encontrar familiares directos de esta persona en específico
   const { padres, conyuges, hijos, hermanos } = useMemo(() => {
@@ -50,6 +56,8 @@ export default function PersonDetailModal({
     const conyugesList: { persona: Persona; rel: string }[] = [];
     const hijosList: { persona: Persona; rel: string }[] = [];
     const hermanosList: { persona: Persona; rel: string }[] = [];
+
+    if (!persona) return { padres: [], conyuges: [], hijos: [], hermanos: [] };
 
     relaciones.forEach((r) => {
       const p1 = personas.find((p) => p.id === r.persona_id_1);
@@ -60,12 +68,12 @@ export default function PersonDetailModal({
       if (r.persona_id_1 === persona.id) {
         if (relType === 'padre' || relType === 'madre') padresList.push({ persona: p2, rel: 'Padre/Madre' });
         if (relType === 'hijo' || relType === 'hija') hijosList.push({ persona: p2, rel: 'Hijo/a' });
-        if (relType === 'conyuge' || relType === 'esposo' || relType === 'esposa' || relType === 'pareja') conyugesList.push({ persona: p2, rel: 'Cónyuge' });
+        if (relType === 'conyuge' || relType === 'esposo' || relType === 'esposa' || relType === 'pareja' || relType === 'novia' || relType === 'novio') conyugesList.push({ persona: p2, rel: 'Cónyuge' });
         if (relType === 'hermano' || relType === 'hermana') hermanosList.push({ persona: p2, rel: 'Hermano/a' });
       } else if (r.persona_id_2 === persona.id) {
         if (relType === 'padre' || relType === 'madre') hijosList.push({ persona: p1, rel: 'Hijo/a' });
         if (relType === 'hijo' || relType === 'hija') padresList.push({ persona: p1, rel: 'Padre/Madre' });
-        if (relType === 'conyuge' || relType === 'esposo' || relType === 'esposa' || relType === 'pareja') conyugesList.push({ persona: p1, rel: 'Cónyuge' });
+        if (relType === 'conyuge' || relType === 'esposo' || relType === 'esposa' || relType === 'pareja' || relType === 'novia' || relType === 'novio') conyugesList.push({ persona: p1, rel: 'Cónyuge' });
         if (relType === 'hermano' || relType === 'hermana') hermanosList.push({ persona: p1, rel: 'Hermano/a' });
       }
     });
@@ -77,6 +85,8 @@ export default function PersonDetailModal({
       hermanos: hermanosList,
     };
   }, [persona, personas, relaciones]);
+
+  if (!persona) return null;
 
   const ageDisplay = formatAgeDisplay(persona.fecha_nacimiento, persona.fecha_fallecimiento);
   const bdayInfo = !persona.fecha_fallecimiento ? getBirthdayInfo(persona.fecha_nacimiento) : null;
@@ -105,8 +115,8 @@ export default function PersonDetailModal({
         onClick={isPopup ? (e) => e.stopPropagation() : undefined}
         className={
           isPopup
-            ? 'pointer-events-auto relative w-full max-w-2xl max-h-[88vh] bg-white/98 dark:bg-slate-900/98 backdrop-blur-2xl rounded-3xl border border-slate-200/80 dark:border-slate-800/80 shadow-2xl flex flex-col overflow-hidden transition-all'
-            : 'pointer-events-auto relative w-full md:w-[420px] h-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border-l border-slate-200/80 dark:border-slate-800/80 shadow-2xl flex flex-col transition-all'
+            ? 'pointer-events-auto relative w-[96%] md:w-full max-w-2xl max-h-[96vh] md:max-h-[88vh] bg-white/98 dark:bg-slate-900/98 backdrop-blur-2xl rounded-2xl md:rounded-3xl border border-slate-200/80 dark:border-slate-800/80 shadow-2xl flex flex-col overflow-hidden transition-all'
+            : 'pointer-events-auto relative w-[90%] max-w-sm sm:max-w-md sm:w-full md:w-[420px] h-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border-l border-slate-200/80 dark:border-slate-800/80 shadow-2xl flex flex-col transition-all ml-auto md:ml-0'
         }
       >
         {/* Top bar */}
@@ -191,6 +201,12 @@ export default function PersonDetailModal({
                   {ageDisplay}
                 </p>
               )}
+              {persona.cedula && (
+                <div className="flex items-center gap-1.5 mt-1.5 text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 w-fit px-2 py-0.5 rounded-md">
+                  <CreditCard className="w-3 h-3" />
+                  {persona.cedula}
+                </div>
+              )}
             </div>
           </div>
 
@@ -211,15 +227,17 @@ export default function PersonDetailModal({
                 <span>Punto de Vista activo</span>
               </div>
             )}
-            <button
-              onClick={() => {
-                /* Futuro hook a edición rápida */
-              }}
-              className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-xs transition-all"
-            >
-              <Edit3 className="w-3.5 h-3.5" />
-              <span>Ficha</span>
-            </button>
+            {user && (
+              <button
+                onClick={() => {
+                  navigate(`/admin/tree/${persona.arbol_id}`);
+                }}
+                className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-xs transition-all"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>Editar en panel</span>
+              </button>
+            )}
           </div>
 
           {/* Alerta de cumpleaños */}
@@ -255,10 +273,22 @@ export default function PersonDetailModal({
           )}
 
           {/* Contactos rápidos */}
-          {(persona.telefono || persona.email) && (
+          {(persona.telefono || persona.celular || persona.email) && (
             <div className="space-y-2">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Contacto Directo</h3>
               <div className="grid grid-cols-1 gap-2">
+                {persona.celular && (
+                  <a
+                    href={`tel:${persona.celular}`}
+                    className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-800 border border-slate-100 dark:border-slate-700 text-xs transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5 text-slate-800 dark:text-slate-200 font-medium">
+                      <Smartphone className="w-4 h-4 text-emerald-500" />
+                      <span>{persona.celular}</span>
+                    </div>
+                    <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+                  </a>
+                )}
                 {persona.telefono && (
                   <a
                     href={`tel:${persona.telefono}`}
@@ -312,6 +342,12 @@ export default function PersonDetailModal({
                 <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 mt-0.5">
                   {persona.fecha_fallecimiento || 'Presente'}
                 </p>
+                {persona.lugar_fallecimiento && (
+                  <div className="flex items-center gap-1 text-[10px] text-slate-500 mt-1">
+                    <MapPinOff className="w-3 h-3" />
+                    <span>{persona.lugar_fallecimiento}</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>

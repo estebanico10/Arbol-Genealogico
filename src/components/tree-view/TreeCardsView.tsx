@@ -19,43 +19,102 @@ export default function TreeCardsView({
   onSelectPersonForDetail,
 }: TreeCardsViewProps) {
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'alive' | 'deceased'>('all');
+  const [ageFilter, setAgeFilter] = useState<'all' | '0-18' | '19-50' | '50+'>('all');
 
   const filteredPersonas = useMemo(() => {
-    if (!search.trim()) return personas;
-    const q = search.toLowerCase();
-    return personas.filter(
-      (p) =>
-        p.nombres?.toLowerCase().includes(q) ||
-        p.apellidos?.toLowerCase().includes(q) ||
-        p.profesion?.toLowerCase().includes(q) ||
-        p.lugar_nacimiento?.toLowerCase().includes(q) ||
-        p.biografia?.toLowerCase().includes(q) ||
-        p.apodo?.toLowerCase().includes(q)
-    );
-  }, [personas, search]);
+    return personas.filter((p) => {
+      // 1. Text Search
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        const matchesText = 
+          p.nombres?.toLowerCase().includes(q) ||
+          p.apellidos?.toLowerCase().includes(q) ||
+          p.profesion?.toLowerCase().includes(q) ||
+          p.lugar_nacimiento?.toLowerCase().includes(q) ||
+          p.biografia?.toLowerCase().includes(q) ||
+          p.apodo?.toLowerCase().includes(q);
+        if (!matchesText) return false;
+      }
+
+      // 2. Status Filter
+      if (statusFilter === 'alive' && p.fecha_fallecimiento) return false;
+      if (statusFilter === 'deceased' && !p.fecha_fallecimiento) return false;
+
+      // 3. Age Filter
+      if (ageFilter !== 'all') {
+        const currentYear = new Date().getFullYear();
+        let age = null;
+        if (p.fecha_nacimiento) {
+          const birthYear = parseInt(p.fecha_nacimiento.split('-')[0], 10);
+          if (!isNaN(birthYear)) {
+            if (p.fecha_fallecimiento) {
+              const deathYear = parseInt(p.fecha_fallecimiento.split('-')[0], 10);
+              if (!isNaN(deathYear)) age = deathYear - birthYear;
+            } else {
+              age = currentYear - birthYear;
+            }
+          }
+        }
+        
+        if (age === null) return false; // If we don't know age, filter it out
+        if (ageFilter === '0-18' && (age < 0 || age > 18)) return false;
+        if (ageFilter === '19-50' && (age < 19 || age > 50)) return false;
+        if (ageFilter === '50+' && age < 51) return false;
+      }
+
+      return true;
+    });
+  }, [personas, search, statusFilter, ageFilter]);
 
   return (
-    <div className="h-full w-full overflow-y-auto p-8 bg-[#F8FAFC] dark:bg-slate-950 space-y-8">
-      {/* Search Header */}
-      <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-            Directorio Familiar
-          </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Fichas detalladas con acceso rápido a información de contacto y biografía.
-          </p>
+    <div className="h-full w-full overflow-y-auto p-4 sm:p-8 bg-[#F8FAFC] dark:bg-slate-950 space-y-6 sm:space-y-8">
+      {/* Header and Search/Filters */}
+      <div className="max-w-7xl mx-auto space-y-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+              Directorio Familiar
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Fichas detalladas con acceso rápido a información de contacto y biografía.
+            </p>
+          </div>
+          
+          <div className="relative w-full sm:w-80 shrink-0">
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Buscar por nombre o atributo..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-xs font-medium text-slate-800 dark:text-slate-100 placeholder:text-slate-400 shadow-xs focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+            />
+          </div>
         </div>
 
-        <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Filtrar por nombre, profesión, lugar..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-xs font-medium text-slate-800 dark:text-slate-100 placeholder:text-slate-400 shadow-xs focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-          />
+        {/* Filters Bar */}
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as any)}
+            className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 shadow-xs focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer transition-all hover:bg-slate-50 dark:hover:bg-slate-800"
+          >
+            <option value="all">Estado: Todos</option>
+            <option value="alive">Solo Vivos</option>
+            <option value="deceased">Solo Fallecidos</option>
+          </select>
+
+          <select
+            value={ageFilter}
+            onChange={(e) => setAgeFilter(e.target.value as any)}
+            className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 shadow-xs focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer transition-all hover:bg-slate-50 dark:hover:bg-slate-800"
+          >
+            <option value="all">Edad: Todas</option>
+            <option value="0-18">0 - 18 años</option>
+            <option value="19-50">19 - 50 años</option>
+            <option value="50+">Más de 50 años</option>
+          </select>
         </div>
       </div>
 
@@ -168,10 +227,17 @@ export default function TreeCardsView({
                   )}
                 </div>
 
-                <div className="flex items-center gap-1 text-xs font-bold text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                <button 
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectPersonForDetail(persona);
+                  }}
+                  className="flex items-center gap-1 text-xs font-bold text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors"
+                >
                   <span>Abrir ficha</span>
                   <ChevronRight className="w-3.5 h-3.5" />
-                </div>
+                </button>
               </div>
             </div>
           );

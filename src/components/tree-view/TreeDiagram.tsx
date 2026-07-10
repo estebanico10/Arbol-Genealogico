@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, useEffect } from 'react';
+import { useCallback, useMemo, useState, useEffect, useTransition } from 'react';
 import {
   ReactFlow,
   MiniMap,
@@ -13,7 +13,10 @@ import {
 import '@xyflow/react/dist/style.css';
 import { Persona, Relacion } from '../../types/database';
 import dagre from 'dagre';
-import { calculateKinship } from '../../utils/kinshipCalculator';
+import { calculateAllKinships } from '../../utils/kinshipCalculator';
+import PersonNode from './PersonNode';
+import UnionNode from './UnionNode';
+import { ParentChildEdge, SpouseEdge, SiblingEdge } from './customEdges';
 import {
   Compass,
   Search,
@@ -29,7 +32,6 @@ import {
   ArrowUpDown,
   ArrowLeftRight,
   X,
-  Heart,
 } from 'lucide-react';
 
 interface TreeDiagramProps {
@@ -119,6 +121,7 @@ function FloatingSmartToolbar({
               : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
           title="Buscar persona en el árbol"
+          aria-label="Buscar persona en el árbol"
         >
           <Search className="w-4 h-4" />
         </button>
@@ -132,6 +135,7 @@ function FloatingSmartToolbar({
               <button
                 onClick={() => setIsSearchOpen(false)}
                 className="text-slate-400 hover:text-slate-600"
+                aria-label="Cerrar búsqueda"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -143,6 +147,7 @@ function FloatingSmartToolbar({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full px-3 py-2 text-xs bg-slate-100 dark:bg-slate-800 rounded-xl border-none outline-none text-slate-800 dark:text-slate-100 placeholder:text-slate-400 font-medium"
+              aria-label="Buscar por nombre o apellido"
             />
             {searchResults.length > 0 && (
               <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
@@ -157,6 +162,18 @@ function FloatingSmartToolbar({
                       }
                       setIsSearchOpen(false);
                       setSearchQuery('');
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onSelectPersonForDetail(p);
+                        const n = getNode(p.id);
+                        if (n) setCenter(n.position.x + 135, n.position.y + 47, { zoom: 1.1, duration: 600 });
+                        setIsSearchOpen(false);
+                        setSearchQuery('');
+                      }
                     }}
                     className="flex items-center justify-between p-2 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer transition-colors text-xs"
                   >
@@ -188,6 +205,7 @@ function FloatingSmartToolbar({
             }
           }}
           className="text-xs font-semibold bg-transparent text-slate-800 dark:text-slate-200 border-none outline-none cursor-pointer pr-1 max-w-[130px] truncate"
+          aria-label="Seleccionar punto de vista principal"
         >
           <option value="">Vista General</option>
           {personas.map((p) => (
@@ -205,6 +223,7 @@ function FloatingSmartToolbar({
         onClick={() => setOrientation((prev) => (prev === 'TB' ? 'LR' : 'TB'))}
         className="w-9 h-9 flex items-center justify-center rounded-[10px] text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
         title={`Orientación: ${orientation === 'TB' ? 'Vertical' : 'Horizontal'}`}
+        aria-label={`Orientación: ${orientation === 'TB' ? 'Vertical' : 'Horizontal'}`}
       >
         {orientation === 'TB' ? <ArrowUpDown className="w-4 h-4" /> : <ArrowLeftRight className="w-4 h-4" />}
       </button>
@@ -218,6 +237,7 @@ function FloatingSmartToolbar({
             : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
         }`}
         title={showLabels ? 'Ocultar etiquetas de relación' : 'Mostrar etiquetas de relación'}
+        aria-label={showLabels ? 'Ocultar etiquetas de relación' : 'Mostrar etiquetas de relación'}
       >
         <Tag className="w-4 h-4" />
       </button>
@@ -231,6 +251,7 @@ function FloatingSmartToolbar({
             : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
         }`}
         title="Mostrar fotografías en nodos"
+        aria-label="Mostrar fotografías en nodos"
       >
         <ImageIcon className="w-4 h-4" />
       </button>
@@ -244,6 +265,7 @@ function FloatingSmartToolbar({
             : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
         }`}
         title="Mostrar indicador de generación"
+        aria-label="Mostrar indicador de generación"
       >
         <Layers className="w-4 h-4" />
       </button>
@@ -255,6 +277,7 @@ function FloatingSmartToolbar({
         onClick={() => zoomIn({ duration: 300 })}
         className="w-9 h-9 flex items-center justify-center rounded-[10px] text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
         title="Acercar zoom"
+        aria-label="Acercar zoom"
       >
         <ZoomIn className="w-4 h-4" />
       </button>
@@ -264,6 +287,7 @@ function FloatingSmartToolbar({
         onClick={() => zoomOut({ duration: 300 })}
         className="w-9 h-9 flex items-center justify-center rounded-[10px] text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
         title="Alejar zoom"
+        aria-label="Alejar zoom"
       >
         <ZoomOut className="w-4 h-4" />
       </button>
@@ -273,6 +297,7 @@ function FloatingSmartToolbar({
         onClick={() => fitView({ duration: 600, padding: 0.15 })}
         className="w-9 h-9 flex items-center justify-center rounded-[10px] text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
         title="Ajustar al contenido"
+        aria-label="Ajustar al contenido"
       >
         <Focus className="w-4 h-4" />
       </button>
@@ -282,6 +307,7 @@ function FloatingSmartToolbar({
         onClick={handleCenterOnFocal}
         className="w-9 h-9 flex items-center justify-center rounded-[10px] text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
         title="Centrar en Punto de Vista"
+        aria-label="Centrar en Punto de Vista"
       >
         <Target className="w-4 h-4" />
       </button>
@@ -291,6 +317,7 @@ function FloatingSmartToolbar({
         onClick={toggleFullscreen}
         className="w-9 h-9 flex items-center justify-center rounded-[10px] text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
         title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+        aria-label={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
       >
         {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
       </button>
@@ -314,6 +341,9 @@ export default function TreeDiagram({
   const [showPhotos, setShowPhotos] = useState<boolean>(true);
   const [showGenerations, setShowGenerations] = useState<boolean>(false);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+
+  const nodeTypes = useMemo(() => ({ person: PersonNode, union: UnionNode }), []);
+  const edgeTypes = useMemo(() => ({ parentChild: ParentChildEdge, spouse: SpouseEdge, sibling: SiblingEdge }), []);
 
   // Mapeo de parientes directos para Focus Mode
   const directRelativesMap = useMemo(() => {
@@ -390,7 +420,7 @@ export default function TreeDiagram({
         parentMap.get(p2)?.add(p1);
       } else if (t === 'hijo' || t === 'hija') {
         parentMap.get(p1)?.add(p2);
-      } else if (t === 'conyuge' || t === 'esposo' || t === 'esposa' || t === 'pareja') {
+      } else if (t === 'conyuge' || t === 'esposo' || t === 'esposa' || t === 'pareja' || t === 'novia' || t === 'novio') {
         const k = p1 < p2 ? `${p1}|${p2}` : `${p2}|${p1}`;
         if (!coupleSet.has(k)) {
           coupleSet.add(k);
@@ -437,105 +467,45 @@ export default function TreeDiagram({
   const initialNodes: Node[] = useMemo(() => {
     const activeCenterId = hoveredNodeId || focalPersonId;
     const result: Node[] = [];
+    
+    // O(N) map computation
+    const kinshipsMap = calculateAllKinships(focalPersonId, personas, relaciones);
 
     // 1. Nodos de Persona
     personas.forEach((p) => {
       const isFocal = focalPersonId === p.id;
       const isDirectRelative = directRelativesMap.has(p.id);
 
-      let opacityClass = 'opacity-100';
+      let isDimmed = false;
       if (activeCenterId && !isDirectRelative && p.id !== activeCenterId) {
-        opacityClass = 'opacity-40 grayscale-[30%]';
+        isDimmed = true;
       }
 
-      const kinship = focalPersonId
-        ? calculateKinship(focalPersonId, p.id, personas, relaciones)
-        : null;
-
+      const kinData = kinshipsMap.get(p.id);
+      const kinship = kinData?.kinship || null;
+      const generationValue = kinData?.generation;
+      
       const badgeRole = isFocal ? 'Yo' : kinship || 'Familiar';
-
-      const yearBirth = p.fecha_nacimiento ? p.fecha_nacimiento.split('-')[0] : '';
-      const yearDeath = p.fecha_fallecimiento ? p.fecha_fallecimiento.split('-')[0] : '';
-      const dateDisplay =
-        yearBirth && yearDeath
-          ? `${yearBirth} – ${yearDeath}`
-          : yearBirth
-          ? `n. ${yearBirth}`
-          : '—';
-
-      const ringColor = isFocal
-        ? 'border-blue-500 shadow-[0_8px_30px_rgba(37,99,235,0.18)] bg-blue-50/40 dark:bg-blue-950/30'
-        : 'border-slate-200/80 dark:border-slate-800/80 hover:border-slate-400 dark:hover:border-slate-600 bg-white dark:bg-slate-900 shadow-sm';
+      const genString = generationValue !== undefined ? 
+        (generationValue > 0 ? `Gen +${generationValue}` : generationValue < 0 ? `Gen ${generationValue}` : 'Misma Gen') : null;
 
       result.push({
         id: p.id,
+        type: 'person',
         data: {
-          label: (
-            <div
-              onMouseEnter={() => setHoveredNodeId(p.id)}
-              onMouseLeave={() => setHoveredNodeId(null)}
-              onClick={() => onSelectPersonForDetail(p)}
-              className={`group w-[270px] h-[95px] rounded-3xl p-3.5 border transition-all duration-200 flex items-center justify-between cursor-pointer ${ringColor} ${opacityClass}`}
-            >
-              <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                {showPhotos && p.foto ? (
-                  <img
-                    src={p.foto}
-                    alt=""
-                    className="w-12 h-12 rounded-full object-cover ring-2 ring-white dark:ring-slate-800 shadow-xs shrink-0"
-                  />
-                ) : (
-                  <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-center font-bold text-base tracking-tight shrink-0 ring-2 ring-white dark:ring-slate-800 shadow-xs">
-                    {(p.nombres?.[0] || '').toUpperCase()}{(p.apellidos?.[0] || '').toUpperCase()}
-                  </div>
-                )}
-
-                <div className="min-w-0 flex-1 text-left">
-                  <h4 className="font-semibold text-[15px] text-slate-900 dark:text-slate-100 leading-snug truncate">
-                    {p.nombres} {p.apellidos}
-                  </h4>
-                  <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5 tracking-tight">
-                    {dateDisplay}
-                  </p>
-                  {showGenerations && (
-                    <span className="inline-block mt-0.5 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                      Gen Familiar
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* LAS ETIQUETAS (PADRE, MADRE, HERMANO) SÓLO APARECEN SI showLabels ES TRUE O ES EL NODO FOCO ("Yo") */}
-              <div className="flex flex-col items-end justify-between h-full pl-2 shrink-0">
-                {(showLabels || isFocal) ? (
-                  <span
-                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase ${
-                      isFocal
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                    }`}
-                  >
-                    {badgeRole}
-                  </span>
-                ) : (
-                  <div />
-                )}
-
-                {!isFocal && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSelectFocalPerson(p.id);
-                    }}
-                    className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 dark:hover:text-blue-400 transition-colors opacity-0 group-hover:opacity-100"
-                    title="Establecer como Punto de Vista"
-                  >
-                    <Compass className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            </div>
-          ),
+          persona: p,
+          isFocal,
+          kinship,
+          badgeRole,
+          showPhotos,
+          showGenerations,
+          showLabels,
+          isDimmed,
+          generation: genString,
+          onSelect: onSelectPersonForDetail,
+          onSetFocal: onSelectFocalPerson,
+          onHover: setHoveredNodeId,
+          index: result.length // passed for staggered animation
         },
         position: { x: 0, y: 0 },
         style: {
@@ -552,16 +522,8 @@ export default function TreeDiagram({
       const unionId = `union-${p1}-${p2}`;
       result.push({
         id: unionId,
-        data: {
-          label: (
-            <div
-              className="w-8 h-8 rounded-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 shadow-sm flex items-center justify-center text-slate-400 hover:text-rose-500 transition-colors"
-              title="Unión / Matrimonio"
-            >
-              <Heart className="w-3.5 h-3.5 fill-slate-200 dark:fill-slate-800" />
-            </div>
-          ),
-        },
+        type: 'union',
+        data: { index: result.length },
         position: { x: 0, y: 0 },
         style: {
           width: 32,
@@ -587,13 +549,10 @@ export default function TreeDiagram({
     onSelectPersonForDetail,
   ]);
 
-  // Aristas limpias: Curvas suaves (smoothstep, borderRadius: 28, strokeWidth: 2px, sin texto)
+  // Aristas limpias con customEdges
   const initialEdges: Edge[] = useMemo(() => {
     const edgesList: Edge[] = [];
     const { parentMap, spousePairs } = normalizedStructure;
-
-    const strokeColor = '#94A3B8'; // Gris elegante uniforme que comunica por sí solo
-    const strokeWidth = 2;
 
     // 1. Conectar Parejas al Nodo de Unión Superior (PADRE -> ♡ <- MADRE)
     spousePairs.forEach(([p1, p2]) => {
@@ -603,15 +562,13 @@ export default function TreeDiagram({
           id: `e-${p1}-${unionId}`,
           source: p1,
           target: unionId,
-          type: 'smoothstep',
-          style: { stroke: strokeColor, strokeWidth },
+          type: 'spouse',
         },
         {
           id: `e-${p2}-${unionId}`,
           source: p2,
           target: unionId,
-          type: 'smoothstep',
-          style: { stroke: strokeColor, strokeWidth },
+          type: 'spouse',
         }
       );
     });
@@ -628,8 +585,7 @@ export default function TreeDiagram({
           id: `e-${unionId}-${child.id}`,
           source: unionId,
           target: child.id,
-          type: 'smoothstep',
-          style: { stroke: strokeColor, strokeWidth },
+          type: 'parentChild',
         });
       } else if (parents.length === 1) {
         // Un solo padre conocido en la base de datos
@@ -637,13 +593,49 @@ export default function TreeDiagram({
           id: `e-${parents[0]}-${child.id}`,
           source: parents[0],
           target: child.id,
-          type: 'smoothstep',
-          style: { stroke: strokeColor, strokeWidth },
+          type: 'parentChild',
         });
       }
     });
 
-    // 3. Hermanos sin padres registrados en la base de datos (conector horizontal limpio)
+    // 3. Alinear esposos (Si P1 tiene padres y P2 no tiene, anclar P2 al nivel de P1)
+    spousePairs.forEach(([p1, p2]) => {
+      const p1Parents = Array.from(parentMap.get(p1) || []);
+      const p2Parents = Array.from(parentMap.get(p2) || []);
+      
+      // Si p1 tiene padres y p2 no, añadimos un enlace invisible desde la unión de padres de p1 hasta p2
+      if (p1Parents.length >= 1 && p2Parents.length === 0) {
+        const sourceId = p1Parents.length >= 2 
+          ? (p1Parents[0] < p1Parents[1] ? `union-${p1Parents[0]}-${p1Parents[1]}` : `union-${p1Parents[1]}-${p1Parents[0]}`)
+          : p1Parents[0];
+          
+        edgesList.push({
+          id: `dummy-align-${sourceId}-${p2}`,
+          source: sourceId,
+          target: p2,
+          type: 'default',
+          style: { stroke: 'transparent', opacity: 0 },
+          animated: false,
+        });
+      }
+      // Lo mismo a la inversa
+      else if (p2Parents.length >= 1 && p1Parents.length === 0) {
+        const sourceId = p2Parents.length >= 2 
+          ? (p2Parents[0] < p2Parents[1] ? `union-${p2Parents[0]}-${p2Parents[1]}` : `union-${p2Parents[1]}-${p2Parents[0]}`)
+          : p2Parents[0];
+          
+        edgesList.push({
+          id: `dummy-align-${sourceId}-${p1}`,
+          source: sourceId,
+          target: p1,
+          type: 'default',
+          style: { stroke: 'transparent', opacity: 0 },
+          animated: false,
+        });
+      }
+    });
+
+    // 4. Hermanos sin padres registrados en la base de datos
     relaciones.forEach((r) => {
       const { persona_id_1: p1, persona_id_2: p2, tipo_relacion: t } = r;
       if (t === 'hermano' || t === 'hermana') {
@@ -654,8 +646,7 @@ export default function TreeDiagram({
             id: `e-sib-${r.id}`,
             source: p1,
             target: p2,
-            type: 'smoothstep',
-            style: { stroke: strokeColor, strokeWidth },
+            type: 'sibling',
           });
         }
       }
@@ -671,18 +662,33 @@ export default function TreeDiagram({
 
   const [nodes, setNodes, onNodesChange] = useNodesState(layouted.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(layouted.edges);
+  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
-    const freshLayout = getLayoutedElements(initialNodes, initialEdges, orientation);
-    setNodes(freshLayout.nodes);
-    setEdges(freshLayout.edges);
+    startTransition(() => {
+      const freshLayout = getLayoutedElements(initialNodes, initialEdges, orientation);
+      setNodes(freshLayout.nodes);
+      setEdges(freshLayout.edges);
+    });
   }, [initialNodes, initialEdges, orientation, setNodes, setEdges, getLayoutedElements]);
 
   return (
     <div className="w-full h-full relative bg-[#F8FAFC] dark:bg-slate-950 transition-colors">
+      {isPending && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/50 dark:bg-slate-950/50 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-8 h-8 rounded-full border-4 border-blue-500 border-t-transparent animate-spin" />
+            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+              Calculando layout...
+            </span>
+          </div>
+        </div>
+      )}
       <ReactFlow
         nodes={nodes}
         edges={edges}
+        nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         fitView
@@ -709,11 +715,11 @@ export default function TreeDiagram({
         <MiniMap
           zoomable
           pannable
-          className="!bg-white/70 dark:!bg-slate-900/70 !border-slate-200/60 dark:!border-slate-800/60 !shadow-lg !rounded-2xl !bottom-20 !right-6 opacity-80 hover:opacity-100 transition-opacity"
-          maskColor="rgba(241, 245, 249, 0.5)"
+          className="!bg-white/70 dark:!bg-slate-900/70 !border-slate-200/60 dark:!border-slate-800/60 !shadow-lg !rounded-xl !top-6 !right-6 opacity-60 hover:opacity-100 transition-opacity"
+          maskColor="rgba(241, 245, 249, 0.4)"
         />
 
-        <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#CBD5E1" />
+        <Background variant={BackgroundVariant.Cross} gap={30} size={1} color="#CBD5E1" className="opacity-40" />
       </ReactFlow>
     </div>
   );

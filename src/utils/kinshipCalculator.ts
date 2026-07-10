@@ -54,7 +54,7 @@ function buildKinshipGraph(personas: Persona[], relaciones: Relacion[]): Map<str
     } else if (tipo_relacion === 'hijo' || tipo_relacion === 'hija') {
       addEdge(p1, p2, 'parent');
       addEdge(p2, p1, 'child');
-    } else if (tipo_relacion === 'esposo' || tipo_relacion === 'esposa' || tipo_relacion === 'conyuge' || tipo_relacion === 'pareja') {
+    } else if (tipo_relacion === 'esposo' || tipo_relacion === 'esposa' || tipo_relacion === 'conyuge' || tipo_relacion === 'pareja' || tipo_relacion === 'novio' || tipo_relacion === 'novia') {
       addEdge(p1, p2, 'spouse');
       addEdge(p2, p1, 'spouse');
     } else if (tipo_relacion === 'hermano' || tipo_relacion === 'hermana') {
@@ -161,41 +161,70 @@ function interpretPath(path: StepType[], targetGender: 'M' | 'F' | 'unknown'): s
 }
 
 /**
- * Calcula el parentesco en español desde la persona focal hacia la persona objetivo
+ * Calcula el parentesco y generación para todas las personas desde el nodo focal en O(N)
  */
+export function calculateAllKinships(
+  focalPersonId: string | null | undefined,
+  personas: Persona[],
+  relaciones: Relacion[]
+): Map<string, { kinship: string; generation: number }> {
+  const result = new Map<string, { kinship: string; generation: number }>();
+  if (!focalPersonId) return result;
+
+  const adj = buildKinshipGraph(personas, relaciones);
+  
+  // BFS para encontrar rutas a todos los nodos
+  const queue: Array<{ id: string; path: StepType[]; generation: number }> = [
+    { id: focalPersonId, path: [], generation: 0 }
+  ];
+  const visited = new Set<string>([focalPersonId]);
+
+  result.set(focalPersonId, { kinship: 'Yo (Punto de Vista)', generation: 0 });
+
+  while (queue.length > 0) {
+    const curr = queue.shift()!;
+    const neighbors = adj.get(curr.id) || [];
+    
+    for (const edge of neighbors) {
+      if (!visited.has(edge.target)) {
+        visited.add(edge.target);
+        
+        let nextGen = curr.generation;
+        if (edge.type === 'parent') nextGen += 1;
+        if (edge.type === 'child') nextGen -= 1;
+        
+        const newPath = [...curr.path, edge.type];
+        const targetGender = inferGender(edge.target, personas, relaciones);
+        const kinship = interpretPath(newPath, targetGender);
+        
+        result.set(edge.target, { kinship, generation: nextGen });
+        
+        queue.push({
+          id: edge.target,
+          path: newPath,
+          generation: nextGen,
+        });
+      }
+    }
+  }
+
+  // Set default for unvisited
+  personas.forEach(p => {
+    if (!result.has(p.id)) {
+      result.set(p.id, { kinship: 'Familiar / Sin conexión', generation: 0 });
+    }
+  });
+
+  return result;
+}
+
 export function calculateKinship(
   focalPersonId: string | null | undefined,
   targetPersonId: string,
   personas: Persona[],
   relaciones: Relacion[]
 ): string | null {
-  if (!focalPersonId) return null;
-  if (focalPersonId === targetPersonId) return 'Yo (Punto de Vista)';
-
-  const adj = buildKinshipGraph(personas, relaciones);
-  const targetGender = inferGender(targetPersonId, personas, relaciones);
-
-  // BFS para encontrar la ruta más corta
-  const queue: Array<{ id: string; path: StepType[] }> = [{ id: focalPersonId, path: [] }];
-  const visited = new Set<string>([focalPersonId]);
-
-  while (queue.length > 0) {
-    const curr = queue.shift()!;
-    if (curr.id === targetPersonId) {
-      return interpretPath(curr.path, targetGender);
-    }
-
-    const neighbors = adj.get(curr.id) || [];
-    for (const edge of neighbors) {
-      if (!visited.has(edge.target)) {
-        visited.add(edge.target);
-        queue.push({
-          id: edge.target,
-          path: [...curr.path, edge.type],
-        });
-      }
-    }
-  }
-
-  return 'Familiar / Sin conexión directa';
+  const map = calculateAllKinships(focalPersonId, personas, relaciones);
+  return map.get(targetPersonId)?.kinship || null;
 }
+

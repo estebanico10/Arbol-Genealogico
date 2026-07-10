@@ -26,7 +26,7 @@ export interface Persona {
   created_at: string;
 }
 
-export type TipoRelacion = 'padre' | 'madre' | 'hijo' | 'hija' | 'esposo' | 'esposa' | 'conyuge' | 'hermano' | 'hermana' | 'pareja';
+export type TipoRelacion = 'padre' | 'madre' | 'hijo' | 'hija' | 'esposo' | 'esposa' | 'conyuge' | 'hermano' | 'hermana' | 'pareja' | 'novio' | 'novia';
 
 export interface Relacion {
   id: string;
